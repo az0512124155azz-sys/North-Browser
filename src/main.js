@@ -4,12 +4,17 @@ const fs=require('node:fs');const path=require('node:path');
 const {createTelegramBot}=require('./telegram-bot');
 const {createClassroomScanner}=require('./classroom-scanner');
 const {createStudyAgent}=require('./study-agent');
-const {readDocument,renderAnswerPDF}=require('./study-documents');
+const {renderAnswerPDF}=require('./study-documents');
+const {createGptFiles}=require('./gpt-files');
+const {createGptWorkflow}=require('./gpt-workflow');
+const {createChatGPTWeb}=require('./gpt-web');
 const {createPasswordVault,createSessionKeeper,credentialOrigin}=require('./secure-profile');
 const crypto=require('node:crypto');
 const PARTITION='persist:north-main';
 let win,panel,tray,scanner,bot,study,quitting=false,scanTimer=null;
 let vault,sessionKeeper,passwordWindow,shutdownReady=false;
+let gptFiles,gptWorkflow,gptWeb,gptHistoryWindow;
+const gptTabs=new Map();
 const passwordOffers=new Map();
 const usernameHints=new Map();
 const browsers=new Map();
@@ -22,8 +27,8 @@ function persist(){if(!storeFile)return;try{const tmp=storeFile+'.tmp';fs.writeF
 function loadState(){storeFile=path.join(app.getPath('userData'),'north-study-state.json');try{Object.assign(state,JSON.parse(fs.readFileSync(storeFile,'utf8')))}catch{}}
 function getToken(){if(process.env.NORTH_TELEGRAM_BOT_TOKEN)return process.env.NORTH_TELEGRAM_BOT_TOKEN;try{return state.telegramCipher&&safeStorage.isEncryptionAvailable()?safeStorage.decryptString(Buffer.from(state.telegramCipher,'base64')):''}catch{return ''}}
 function saveToken(text){if(!safeStorage.isEncryptionAvailable())throw Error('Secure token storage is unavailable. On Linux set NORTH_TELEGRAM_BOT_TOKEN securely instead.');state.telegramCipher=safeStorage.encryptString(text).toString('base64');persist()}
-function pushStudy(){const d=studyStatus();for(const w of [panel,...[...browsers.values()].map(b=>b.win)])if(w&&!w.isDestroyed())w.webContents.send('study:changed',d)}
-function studyStatus(){return {bot:'@NorthStudyHelperBot',configured:!!getToken(),owner:bot?.getOwner()||null,botStatus,scanner:scanner?.status()||{},tasks:scanner?.tasks()?.slice(0,200)||[],classes:scanner?.classes()||[],messages:scanner?.notices()?.slice(0,40)||[],localDrafts:Object.keys(state.drafts||{}).length};}
+function pushStudy(){const d=studyStatus();for(const w of [panel,gptHistoryWindow,...[...browsers.values()].map(b=>b.win)])if(w&&!w.isDestroyed()){w.webContents.send('study:changed',d);if(w===gptHistoryWindow)w.webContents.send('gpt:changed',gptWorkflow?.status()||{threads:[]});}}
+function studyStatus(){return {bot:'@NorthStudyHelperBot',configured:!!getToken(),owner:bot?.getOwner()||null,botStatus,scanner:scanner?.status()||{},tasks:scanner?.tasks()?.slice(0,200)||[],classes:scanner?.classes()||[],messages:scanner?.notices()?.slice(0,40)||[],localDrafts:Object.keys(state.drafts||{}).length,gpt:gptWeb?.status()||{},gptChats:gptWorkflow?.status().threads.length||0};}
 function normalize(input){input=String(input||'').trim();if(!input||input==='north://newtab')return 'north://newtab';if(/^https?:\/\//i.test(input))return input;if(/^[\w.-]+\.[a-z]{2,}(?::\d+)?(?:\/.*)?$/i.test(input))return 'https://'+input;return 'https://www.google.com/search?q='+encodeURIComponent(input)}
 function tabState(b){return {active:b.active,tabs:[...b.tabs.values()].map(t=>({id:t.id,title:t.title,url:t.url,loading:t.loading,error:t.error||''}))}}
 function emitTabs(b){if(!b.win.isDestroyed())b.win.webContents.send('tabs:update',tabState(b))}
@@ -77,11 +82,37 @@ function createBrowser(){
 function panelWindow(){if(panel&&!panel.isDestroyed()){panel.focus();return}panel=new BrowserWindow({parent:win,width:600,height:760,minWidth:420,minHeight:480,backgroundColor:'#1a2420',title:'North Study Assistant',autoHideMenuBar:true,webPreferences:{preload:path.join(__dirname,'preload.js'),sandbox:true,contextIsolation:true,nodeIntegration:false}});panel.loadFile(path.join(__dirname,'study-panel.html'));panel.webContents.on('did-finish-load',pushStudy)}
 function createTray(){try{tray=new Tray(path.join(__dirname,'north-icon.png'));tray.setToolTip('North Browser - study scanner');tray.setContextMenu(Menu.buildFromTemplate([{label:'Open North',click:()=>{win.show();win.focus()}},{label:'Study Assistant',click:()=>{win.show();panelWindow()}},{type:'separator'},{label:'Exit North',click:()=>{quitting=true;app.quit()}}]));tray.on('double-click',()=>{win.show();win.focus()})}catch(e){console.warn('Tray not available:',e.message)}}
 async function scanNow(){const result=await scanner.scan();pushStudy();return result}
+function gptSender(e){if(e.senderFrame!==e.sender.mainFrame||![panel?.webContents,gptHistoryWindow?.webContents,...[...browsers.values()].map(b=>b.win.webContents)].includes(e.sender))throw Error('Invalid GPT workspace sender');}
+function gptHistory(){if(gptHistoryWindow&&!gptHistoryWindow.isDestroyed()){gptHistoryWindow.show();gptHistoryWindow.focus();return;}gptHistoryWindow=new BrowserWindow({width:1080,height:800,minWidth:750,minHeight:550,title:'North — שיחות GPT',backgroundColor:'#192620',autoHideMenuBar:true,webPreferences:{preload:path.join(__dirname,'preload.js'),sandbox:true,contextIsolation:true,nodeIntegration:false}});gptHistoryWindow.loadFile(path.join(__dirname,'gpt-history.html'));}
+async function getGptTab(thread,url){
+ let entry=gptTabs.get(thread.id);
+ if(!entry||entry.b.win.isDestroyed()||!entry.t.view||entry.t.view.webContents.isDestroyed()){
+  if(!win||win.isDestroyed())win=createBrowser();const b=browsers.get(win.webContents.id),id=add(b,url);entry={b,t:b.tabs.get(id)};gptTabs.set(thread.id,entry);
+ }else if(entry.t.view.webContents.getURL()!==url&&!entry.t.view.webContents.isLoading())navigateTab(entry.b,entry.t,url);
+ select(entry.b,entry.t.id);entry.b.win.show();entry.b.win.focus();return entry.t.view.webContents;
+}
+async function captureGptDownload(wc,trigger){
+ const dir=path.join(app.getPath('userData'),'north-gpt-downloads');fs.mkdirSync(dir,{recursive:true});
+ return new Promise((resolve,reject)=>{
+  let item=null,file='',settled=false;const ses=wc.session;
+  const finish=(error,value)=>{if(settled)return;settled=true;clearTimeout(timer);ses.removeListener('will-download',listener);if(error&&item)item.cancel();if(file&&fs.existsSync(file))fs.unlinkSync(file);error?reject(error):resolve(value);};
+  const listener=(_e,incoming,sender)=>{if(sender!==wc)return;item=incoming;ses.removeListener('will-download',listener);file=path.join(dir,crypto.randomBytes(12).toString('hex')+'-'+path.basename(item.getFilename()).replace(/[\\/:*?"<>|\x00-\x1f]/g,'_').slice(-100));item.setSavePath(file);if(item.getTotalBytes()>20*1024*1024){finish(Error('קובץ GPT גדול מ־20MB. פתח אותו בשיחה.'));return;}item.on('updated',()=>{if(item.getReceivedBytes()>20*1024*1024)finish(Error('קובץ GPT גדול מדי.'));});item.once('done',(_event,status)=>{if(settled)return;if(status!=='completed'){finish(Error('הורדת קובץ GPT לא הסתיימה.'));return;}try{finish(null,gptFiles.put(fs.readFileSync(file),item.getFilename()));}catch(e){finish(e);}});};
+  const timer=setTimeout(()=>finish(Error('לא התקבל קובץ מהקישור של GPT. אפשר לפתוח אותו באתר.')),30000);ses.on('will-download',listener);Promise.resolve().then(trigger).catch(finish);
+ });
+}
+async function captureTask(task){
+ if(!/^https:\/\/classroom\.google\.com\//.test(task.url||''))return [];
+ const w=new BrowserWindow({show:false,width:1280,height:1000,webPreferences:{partition:PARTITION,sandbox:true,contextIsolation:true,nodeIntegration:false}});
+ try{await w.loadURL(task.url);await new Promise(r=>setTimeout(r,800));const login=await w.webContents.executeJavaScript('location.hostname!=="classroom.google.com"||!!document.querySelector("input[type=password]")');if(login)throw Error('נדרשת התחברות ל־Classroom.');return[gptFiles.put((await w.webContents.capturePage()).toPNG(),'Classroom-task.png')];}finally{w.destroy();}
+}
 async function initializeStudy(){loadState();scanner=createClassroomScanner({BrowserWindow,partition:PARTITION,store:state,save:persist,onStatus:()=>pushStudy(),
- onNewTasks:async tasks=>{for(const t of tasks.slice(0,10)){try{await bot.toOwner(`📚 מטלה חדשה ב-Classroom\n${t.title}\nכיתה: ${t.course}\n${t.url}`)}catch(e){console.warn('Telegram tasks:',e.message)}}},
+ onNewTasks:async tasks=>{for(const t of tasks.slice(0,10)){try{if(bot.getOwner())await bot.presentTask(t,true);}catch(e){await bot.toOwner(`מטלה חדשה: ${t.title}\n${t.url}\nלא הצלחתי להכין הצעה: ${e.message}`).catch(()=>{});console.warn('Telegram tasks:',e.message)}}},
  onNewAnnouncements:async messages=>{for(const m of messages.slice(0,12)){try{await bot.toOwner(`📢 הודעה חדשה ב-Classroom\nכיתה: ${m.course}\n${String(m.text).slice(0,3100)}`)}catch(e){console.warn('Telegram notices:',e.message)}}}});
  study=createStudyAgent({store:state,save:persist,items:()=>scanner.tasks()});
- bot=createTelegramBot({readState:()=>state,writeState:persist,getToken,saveToken,scan:scanNow,tasks:()=>study.all(),classes:()=>scanner.classes(),messages:()=>scanner.notices(),draft:study.draft,addTask:study.addTask,converse:study.converse,readDocument,renderPDF:text=>renderAnswerPDF(BrowserWindow,text),onStatus:s=>{botStatus=s;pushStudy()}});
+ gptFiles=createGptFiles(path.join(app.getPath('userData'),'north-gpt-files'));
+ gptWeb=createChatGPTWeb({getTab:getGptTab,fileStore:gptFiles,captureDownload:captureGptDownload,onChange:pushStudy});
+ gptWorkflow=createGptWorkflow({store:state,save:persist,plan:study.plan,web:gptWeb,onChange:pushStudy,deliveryOwner:()=>bot?.getOwner()||null,onResult:result=>result.pending.deliveryOwner&&String(result.pending.deliveryOwner)===String(bot.getOwner())?bot.deliverGptResult(result):Promise.resolve()});
+ bot=createTelegramBot({readState:()=>state,writeState:persist,getToken,saveToken,scan:scanNow,tasks:()=>study.all(),classes:()=>scanner.classes(),messages:()=>scanner.notices(),addTask:study.addTask,workflow:gptWorkflow,fileStore:gptFiles,captureTask,renderPDF:text=>renderAnswerPDF(BrowserWindow,text),onStatus:s=>{botStatus=s;pushStudy()}});
  await bot.start();
  setTimeout(()=>scanNow().catch(e=>{console.warn('Initial classroom scan:',e.message);pushStudy()}),12000).unref?.();
  scanTimer=setInterval(()=>scanNow().catch(e=>console.warn('Periodic classroom scan:',e.message)),5*60*1000);
@@ -127,6 +158,18 @@ app.whenReady().then(async()=>{
  ipcMain.handle('study:setToken',async(_e,value)=>{if(!bot)throw Error('Bot is not ready');return bot.verifyAndSave(String(value||''))});
  ipcMain.handle('study:pair',()=>{if(!bot)throw Error('Bot is not ready');return bot.createPairingCode()});
  ipcMain.handle('study:scan',()=>scanNow());
+ ipcMain.handle('gpt:history',e=>{gptSender(e);gptHistory();});
+ ipcMain.handle('gpt:status',e=>{gptSender(e);return gptWorkflow?.status()||{threads:[]};});
+ ipcMain.handle('gpt:select',(e,id)=>{gptSender(e);gptWorkflow.choose(id);});
+ ipcMain.handle('gpt:open',(e,id)=>{gptSender(e);return gptWorkflow.open(id).then(()=>true);});
+ ipcMain.handle('gpt:new',(e,title)=>{gptSender(e);return gptWorkflow.create(title).id;});
+ ipcMain.handle('gpt:prepare',(e,id,text)=>{gptSender(e);return gptWorkflow.prepare(text,{threadId:id});});
+ ipcMain.handle('gpt:edit',(e,id,prompt)=>{gptSender(e);return gptWorkflow.edit(id,prompt);});
+ ipcMain.handle('gpt:approve',(e,id,nonce)=>{gptSender(e);return gptWorkflow.approve(id,nonce).then(()=>true);});
+ ipcMain.handle('gpt:cancel',(e,id,nonce)=>{gptSender(e);gptWorkflow.cancel(id,nonce);});
+ ipcMain.handle('gpt:recover',(e,id)=>{gptSender(e);return gptWorkflow.recover(id).then(()=>true);});
+ ipcMain.handle('gpt:rename',(e,id,title)=>{gptSender(e);gptWorkflow.rename(id,title);});
+ ipcMain.handle('gpt:file',(e,id)=>{gptSender(e);const file=gptWorkflow.status().threads.flatMap(t=>t.files).find(f=>f.id===id);if(!file)throw Error('הקובץ לא נמצא');gptFiles.read(file);return shell.openPath(gptFiles.location(file));});
  ipcMain.handle('study:bot',()=>shell.openExternal('https://t.me/NorthStudyHelperBot'));
  ipcMain.handle('study:connect',async()=>{if(!bot?.isConfigured())throw Error('יש להגדיר את מפתח הבוט פעם אחת לפני החיבור.');const pair=bot.createPairingCode();await shell.openExternal(pair?.url||'https://t.me/NorthStudyHelperBot');return pair;});
  win=createBrowser();createTray();
@@ -134,6 +177,6 @@ app.whenReady().then(async()=>{
  if(process.platform==='win32'&&app.isPackaged)app.setLoginItemSettings({openAtLogin:true,openAsHidden:true,args:['--background']});
  if(process.argv.includes('--background'))win.hide();
 });
-app.on('before-quit',event=>{quitting=true;if(!primaryInstance||shutdownReady)return;event.preventDefault();if(scanTimer)clearInterval(scanTimer);bot?.stop();scanner?.destroy();persist();passwordOffers.clear();Promise.resolve(sessionKeeper?.save()).catch(e=>console.warn('Session save:',e.message)).finally(()=>{sessionKeeper?.stop();shutdownReady=true;app.quit();});});
+app.on('before-quit',event=>{quitting=true;if(!primaryInstance||shutdownReady)return;event.preventDefault();if(scanTimer)clearInterval(scanTimer);bot?.stop();gptWeb?.stop();scanner?.destroy();persist();passwordOffers.clear();Promise.resolve(sessionKeeper?.save()).catch(e=>console.warn('Session save:',e.message)).finally(()=>{sessionKeeper?.stop();shutdownReady=true;app.quit();});});
 app.on('window-all-closed',()=>{if(!tray&&process.platform!=='darwin')app.quit()});
 app.on('activate',()=>{if(win&&!win.isDestroyed())win.show()});

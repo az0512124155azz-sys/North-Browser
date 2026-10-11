@@ -1,12 +1,12 @@
 {
   "name": "north-browser",
-  "version": "2.12.0",
+  "version": "2.13.0",
   "private": true,
   "main": "src/main.js",
   "scripts": {
     "start": "electron .",
-    "test:electron": "node test/electron-ui.cjs && node test/electron-profile.cjs && node test/electron-conversation.cjs",
-    "check": "node --check src/main.js && node --check src/preload.js && node --check src/renderer.js && node --check src/study-panel.js && node --check src/classroom-scanner.js && node --check src/telegram-bot.js && node --check src/study-agent.js && node --check src/study-conversation.js && node --check src/study-documents.js && node --test test/*.test.js",
+    "test:electron": "node test/electron-ui.cjs && node test/electron-profile.cjs && node test/electron-gpt.cjs",
+    "check": "node --check src/main.js && node --check src/preload.js && node --check src/renderer.js && node --check src/study-panel.js && node --check src/classroom-scanner.js && node --check src/telegram-bot.js && node --check src/study-agent.js && node --check src/gpt-workflow.js && node --check src/gpt-web.js && node --check src/gpt-files.js && node --check src/gpt-history.js && node --check src/study-documents.js && node --test test/*.test.js",
     "dist:win": "electron-builder --win nsis portable --publish never",
     "dist:mac": "electron-builder --mac dmg zip --publish never",
     "dist:linux": "electron-builder --linux AppImage deb --publish never"

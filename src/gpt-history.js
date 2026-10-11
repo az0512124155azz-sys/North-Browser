@@ -1,0 +1,22 @@
+'use strict';
+(()=>{
+ const api=window.north.gpt,$=s=>document.querySelector(s);let data={threads:[]},selected=null,shownNonce='';
+ const labels={request:'הבקשה שלך',proposal:'פרומפט מוצע',approved:'אישרת לשלוח',submitted:'נשלח לאתר GPT',gpt_response:'תשובת GPT',clarification:'שאלת הבהרה',source_delivery:'חומר המקור',error:'נדרש טיפול',canceled:'בוטל',legacy:'ארכיון מהגרסה הקודמת'};
+ const states={preparing:'מכין פרומפט',approval:'ממתין לאישורך',sending:'פותח ושולח ל־GPT',waiting:'GPT עובד',uncertain:'צריך לבדוק את השיחה',complete:'התשובה מוכנה',error:'נדרש טיפול',clarify:'ממתין להבהרה',canceled:'בוטל',delivered:'חומר מקור'};
+ const action=fn=>async()=>{try{$('#feedback').textContent='';await fn();}catch(e){$('#feedback').textContent=e.message;}};
+ function appendEvent(root,e){const box=document.createElement('article');box.className='event '+e.kind;const h=document.createElement('h3');h.textContent=(labels[e.kind]||e.role||e.kind)+' · '+new Date(e.at||Date.now()).toLocaleString('he-IL');const p=document.createElement('pre');p.textContent=(e.text||e.prompt||(e.url?e.url:''))+(e.task?'\n\n'+JSON.stringify(e.task,null,2):''); box.append(h,p);if(e.files?.length){const f=document.createElement('p');f.textContent='קבצים: '+e.files.map(f=>f.name).join(', ');box.append(f);}root.append(box);}
+ function render(d){data=d;const current=d.threads.find(t=>t.id===selected)||d.threads.find(t=>t.id===d.active);if(current&&!selected)selected=current.id;
+  const needle=$('#filter').value.trim().toLowerCase();$('#chats').replaceChildren();for(const t of [...d.threads].reverse().filter(t=>(t.id+' '+t.title+' '+t.course).toLowerCase().includes(needle))){const button=document.createElement('button');button.className='chat'+(t.id===selected?' selected':'');button.textContent=t.id+'. '+t.title;const tag=document.createElement('span');tag.textContent=(t.course?t.course+' · ':'')+(states[t.pending?.status]||'מוכנה');button.append(tag);button.onclick=action(async()=>{selected=t.id;shownNonce='';render(data);await api.select(t.id);});$('#chats').append(button);}
+  const t=d.threads.find(t=>t.id===selected);$('#empty').hidden=!!t;$('#detail').hidden=!t;if(!t)return;
+  if(document.activeElement!==$('#title'))$('#title').value=t.title;$('#meta').textContent='שיחה '+t.id+(t.course?' · '+t.course:'')+' · '+(states[t.pending?.status]||'מוכנה');
+  $('#recover').hidden=!['waiting','uncertain'].includes(t.pending?.status);$('#files').replaceChildren();for(const f of t.files){const b=document.createElement('button');b.className='secondary';b.textContent=f.name;b.onclick=action(()=>api.file(f.id));$('#files').append(b);}
+  const p=t.pending;$('#proposal').hidden=p?.status!=='approval';if(p?.status==='approval'){if(shownNonce!==p.nonce){$('#prompt').value=p.prompt;shownNonce=p.nonce;}$('#reason').textContent=p.reason;$('#sendFiles').textContent='קבצים שיישלחו: '+(p.files.map(f=>f.name).join(', ')||'ללא');$('#approve').disabled=$('#prompt').value!==p.prompt;}
+  $('#events').replaceChildren();for(const e of t.events)appendEvent($('#events'),e);$('#remoteMessages').replaceChildren();for(const m of t.remoteTranscript||[])appendEvent($('#remoteMessages'),{kind:m.role==='assistant'?'gpt_response':'request',text:m.text,at:t.updatedAt});
+  if(p?.error)$('#feedback').textContent=p.error;
+ }
+ $('#filter').oninput=()=>render(data);$('#prompt').oninput=()=>{$('#approve').disabled=$('#prompt').value!==data.threads.find(t=>t.id===selected)?.pending?.prompt;};
+ $('#newChat').onclick=action(async()=>{selected=await api.create('שיחה חדשה');render(await api.status());});
+ $('#rename').onclick=action(()=>api.rename(selected,$('#title').value));$('#openGPT').onclick=action(()=>api.open(selected));$('#recover').onclick=action(()=>api.recover(selected));
+ $('#savePrompt').onclick=action(()=>api.edit(selected,$('#prompt').value));$('#approve').onclick=action(async()=>{const p=data.threads.find(t=>t.id===selected).pending;if($('#prompt').value!==p.prompt)throw Error('שמור את העריכה ואשר את הפרומפט החדש.');await api.approve(selected,p.nonce);});$('#cancel').onclick=action(()=>api.cancel(selected,data.threads.find(t=>t.id===selected).pending.nonce));
+ $('#prepare').onclick=action(async()=>{const text=$('#request').value.trim();if(!text)throw Error('כתוב מה תרצה ש־GPT יעשה.');await api.prepare(selected,text);$('#request').value='';});api.onChange(render);api.status().then(render).catch(e=>$('#feedback').textContent=e.message);
+})();

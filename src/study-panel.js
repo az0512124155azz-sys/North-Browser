@@ -20,6 +20,7 @@ function update(d){data=d;
 }
 async function refresh(){try{update(await north.study.status())}catch(e){$('#log').textContent=e.message}}
 $('#refresh').onclick=refresh;
+$('#openGptHistory').onclick=()=>north.gpt.history().catch(e=>{$('#log').textContent=e.message});
 async function connectTelegram(){try{await north.study.connect();$('#log').textContent=data.owner?'הבוט נפתח.':'הבוט נפתח בטלגרם. לחץ על Start כדי להשלים את החיבור.';}catch(e){$('#log').textContent=e.message;}}
 $('#connectTelegram').onclick=connectTelegram;
 $('#saveToken').onclick=async()=>{const t=$('#token').value.trim();if(!t){$('#log').textContent='הדבק את מפתח הבוט כדי להמשיך.';return;}const button=$('#saveToken');button.disabled=true;$('#log').textContent='בודק ושומר…';try{await north.study.setToken(t);$('#token').value='';await refresh();await connectTelegram();}catch(e){$('#log').textContent='החיבור לא הצליח: '+e.message;}finally{button.disabled=false;}};
