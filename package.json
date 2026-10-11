@@ -6,9 +6,9 @@
   "scripts": {
     "start": "electron .",
     "check": "node --check src/main.js && node --check src/preload.js && node --check src/renderer.js",
-    "dist:win": "electron-builder --win nsis portable",
-    "dist:mac": "electron-builder --mac dmg zip",
-    "dist:linux": "electron-builder --linux AppImage deb"
+    "dist:win": "electron-builder --win nsis portable --publish never",
+    "dist:mac": "electron-builder --mac dmg zip --publish never",
+    "dist:linux": "electron-builder --linux AppImage deb --publish never"
   },
   "devDependencies": {
     "electron": "^38.0.0",
