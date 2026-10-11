@@ -20,6 +20,8 @@ also did not explicitly preserve session-only cookies when the app exited.
   cookies use Chromium's existing store. Cookie changes update the snapshot;
   quitting waits for a final write and cookies.flushStore. Explicit logout
   removes the session cookie from the snapshot and is respected on restart.
+- Relaunching North raises the existing instance for that profile, preventing
+  competing cookie/password writes and duplicate Telegram polling from the tray.
 - Password storage refuses plain-text fallback when a Linux keyring is absent.
 
 These changes do not import passwords from another browser, defeat a site's
@@ -43,7 +45,7 @@ is per Windows user and device; this is not cross-device synchronization.
 ## Verification
 
 `npm run test:electron` runs the existing 42 real Electron UI scenarios plus
-seven new profile/Telegram scenarios. The latter use real Windows safeStorage,
+eight new profile/Telegram scenarios. The latter use real Windows safeStorage,
 preload/IPC/UI and three complete app launches with the same isolated profile:
 
 1. Login form submission requests consent; encrypted files omit the plaintext.
@@ -53,6 +55,7 @@ preload/IPC/UI and three complete app launches with the same isolated profile:
 5. Two-step forms save and fill the correct username and password.
 6. Bot-key setup opens a deep link; a simulated private Start message links it.
 7. Bot-key/owner state survives restart; explicit logout remains effective.
+8. Launching a second process for the same profile exits and reuses the first.
 
 Telegram HTTP responses and external program launch are simulated in this suite;
 no real bot credential/message is used. Tests use local login pages, not actual

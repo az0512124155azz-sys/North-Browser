@@ -14,6 +14,9 @@ const usernameHints=new Map();
 const browsers=new Map();
 const downloads=new Map();let downloadSeq=0;
 const state={};let storeFile='';let botStatus={};
+const primaryInstance=app.requestSingleInstanceLock();
+if(!primaryInstance)app.quit();
+app.on('second-instance',()=>{if(win&&!win.isDestroyed()){if(win.isMinimized())win.restore();win.show();win.focus();}});
 function persist(){if(!storeFile)return;try{const tmp=storeFile+'.tmp';fs.writeFileSync(tmp,JSON.stringify(state,null,2),{mode:0o600});fs.renameSync(tmp,storeFile)}catch(e){console.error('Cannot save North study state:',e.message)}}
 function loadState(){storeFile=path.join(app.getPath('userData'),'north-study-state.json');try{Object.assign(state,JSON.parse(fs.readFileSync(storeFile,'utf8')))}catch{}}
 function getToken(){if(process.env.NORTH_TELEGRAM_BOT_TOKEN)return process.env.NORTH_TELEGRAM_BOT_TOKEN;try{return state.telegramCipher&&safeStorage.isEncryptionAvailable()?safeStorage.decryptString(Buffer.from(state.telegramCipher,'base64')):''}catch{return ''}}
@@ -83,6 +86,7 @@ async function initializeStudy(){loadState();scanner=createClassroomScanner({Bro
  scanTimer=setInterval(()=>scanNow().catch(e=>console.warn('Periodic classroom scan:',e.message)),5*60*1000);
  }
 app.whenReady().then(async()=>{
+ if(!primaryInstance)return;
  try{vault=createPasswordVault(app.getPath('userData'),safeStorage);}catch(e){console.warn('Password storage:',e.message);}
  sessionKeeper=createSessionKeeper(app.getPath('userData'),safeStorage,session.fromPartition(PARTITION));
  await sessionKeeper.start().catch(e=>console.warn('Session restore:',e.message));
@@ -129,6 +133,6 @@ app.whenReady().then(async()=>{
  if(process.platform==='win32'&&app.isPackaged)app.setLoginItemSettings({openAtLogin:true,openAsHidden:true,args:['--background']});
  if(process.argv.includes('--background'))win.hide();
 });
-app.on('before-quit',event=>{quitting=true;if(shutdownReady)return;event.preventDefault();if(scanTimer)clearInterval(scanTimer);bot?.stop();scanner?.destroy();persist();passwordOffers.clear();Promise.resolve(sessionKeeper?.save()).catch(e=>console.warn('Session save:',e.message)).finally(()=>{sessionKeeper?.stop();shutdownReady=true;app.quit();});});
+app.on('before-quit',event=>{quitting=true;if(!primaryInstance||shutdownReady)return;event.preventDefault();if(scanTimer)clearInterval(scanTimer);bot?.stop();scanner?.destroy();persist();passwordOffers.clear();Promise.resolve(sessionKeeper?.save()).catch(e=>console.warn('Session save:',e.message)).finally(()=>{sessionKeeper?.stop();shutdownReady=true;app.quit();});});
 app.on('window-all-closed',()=>{if(!tray&&process.platform!=='darwin')app.quit()});
 app.on('activate',()=>{if(win&&!win.isDestroyed())win.show()});

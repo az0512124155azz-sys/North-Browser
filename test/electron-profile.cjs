@@ -25,6 +25,11 @@ async function panel(){await page.locator('#railSettings').click();let p;await w
 (async()=>{
  await new Promise(r=>server.listen(0,'127.0.0.1',r));const origin='http://127.0.0.1:'+server.address().port;
  await launch();
+ await check('Relaunch reuses the existing profile instance instead of a second bot',async()=>{
+  const second=require('node:child_process').spawn(require('electron'),[path.join(__dirname,'electron-bootstrap.cjs')],{env:{...process.env,NORTH_TEST_PROFILE:profile,NORTH_TEST_TELEGRAM:'1',NORTH_TELEGRAM_BOT_TOKEN:''},stdio:'ignore'});
+  await new Promise((resolve,reject)=>{const timer=setTimeout(()=>{second.kill();reject(Error('Second instance did not exit'));},10000);second.once('exit',code=>{clearTimeout(timer);code===0?resolve():reject(Error('Second instance exit '+code));});});
+  assert.equal(electron.windows().filter(p=>p.url().endsWith('/index.html')).length,1);
+ });
  await check('Real login submit asks before saving a password',async()=>{
   const login=await go(origin+'/login');await login.locator('[name=username]').fill('student@example.test');await login.locator('[name=password]').fill(PASSWORD);await login.locator('button').click();
   await page.locator('[data-password-save=true]').waitFor();assert.ok(!fs.existsSync(path.join(profile,'north-passwords.enc')));
