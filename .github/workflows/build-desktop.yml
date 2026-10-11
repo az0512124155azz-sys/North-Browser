@@ -52,7 +52,7 @@ jobs:
         if: always() && matrix.target == 'win'
         uses: actions/upload-artifact@v4
         with:
-          name: North-Windows-Electron-tests
+          name: Electron-Windows-tests
           path: test-results/electron/
           if-no-files-found: error
       - run: npm run dist:${{ matrix.target }}
@@ -75,6 +75,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
+          pattern: North-*
           path: release-assets
           merge-multiple: true
       - uses: softprops/action-gh-release@v2
