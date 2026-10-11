@@ -66,6 +66,7 @@ function update(data) {
 function setMenus(mode) {
  if (mode !== 'browser') restoreMenu();
  menuMode = mode;
+ document.body.classList.toggle('menu-active',mode!=='none');
  $('#browserMenu').hidden = mode === 'none';
  $('#studyMenu').hidden = mode !== 'study';
  $('#menuScrim').hidden = mode === 'none';
