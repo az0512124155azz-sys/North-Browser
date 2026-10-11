@@ -4,30 +4,36 @@ const delay=ms=>new Promise(r=>setTimeout(r,ms));
 // session token export, challenge bypass or OpenAI API key is used.
 function inspectPage(){
  const visible=e=>e&&e.getBoundingClientRect().width>0&&e.getBoundingClientRect().height>0;
- const composer=[...document.querySelectorAll('#prompt-textarea,textarea[data-testid="prompt-textarea"]')].find(visible);
- const send=[...document.querySelectorAll('button[data-testid="send-button"],button[aria-label="Send prompt"],button[aria-label="שלח הודעה"],button[aria-label="שליחת הודעה"]')].find(visible);
- const busy=!![...document.querySelectorAll('button[data-testid="stop-button"],button[aria-label="Stop generating"],button[aria-label="עצור יצירה"],[data-is-streaming="true"]')].find(visible);
- const nodes=[...document.querySelectorAll('[data-message-author-role]')];
- const transcript=nodes.map(e=>({role:e.getAttribute('data-message-author-role'),text:(e.querySelector('.markdown')||e).innerText,id:e.getAttribute('data-message-id')||''})).filter(m=>['user','assistant'].includes(m.role));
- const assistants=nodes.filter(e=>e.getAttribute('data-message-author-role')==='assistant'),last=assistants.at(-1);
- const root=composer?.closest('form')||composer?.parentElement?.parentElement;
- const attach=[...document.querySelectorAll('button[data-testid="composer-plus-btn"],button[aria-label*="Attach"],button[aria-label*="צרף"]')].find(visible);
+ const candidates=[...document.querySelectorAll('[contenteditable="true"][data-composer-markdown],#prompt-textarea,textarea[data-testid="prompt-textarea"],[data-composer-input] [contenteditable="true"][role="textbox"]')].filter(visible);const composer=candidates.length===1?candidates[0]:null;
+ const send=[...document.querySelectorAll('button[data-composer-action="send"],button[aria-label="Send message"],button[aria-label="Send"],button[data-testid="send-button"],button[aria-label="Send prompt"],button[aria-label="שלח הודעה"],button[aria-label="שליחת הודעה"]')].find(visible);
+ const busy=!![...document.querySelectorAll('button[aria-label="Stop response"],button[aria-label="Stop"],button[data-testid="stop-button"],button[aria-label="Stop generating"],button[aria-label="עצור יצירה"],[data-is-streaming="true"]')].find(visible);
+ const modern=[...document.querySelectorAll('[data-content-search-unit-key$=":user"],[data-content-search-unit-key$=":assistant"]')];const nodes=modern.length?modern:[...document.querySelectorAll('[data-message-author-role]')];const role=e=>e.getAttribute('data-message-author-role')||e.getAttribute('data-content-search-unit-key')?.split(':').at(-1);const textNode=e=>e.querySelector('[data-markdown-text-style="assistant-message"],[data-user-message-bubble],.markdown')||e;
+ const transcript=nodes.map(e=>({role:role(e),text:textNode(e).innerText,id:e.getAttribute('data-message-id')||e.closest('[data-chatgpt-search-message-ids]')?.getAttribute('data-chatgpt-search-message-ids')||''})).filter(m=>['user','assistant'].includes(m.role));
+ const assistants=nodes.filter(e=>role(e)==='assistant'),last=assistants.at(-1);
+ let root=composer?.closest('form');if(!root){root=composer;for(let i=0;root&&i<6&&!root.querySelector('button[data-composer-navigation-target="add-context"],button[data-testid="composer-plus-btn"]');i++)root=root.parentElement;}
+ const attach=[...document.querySelectorAll('button[data-composer-navigation-target="add-context"],button[aria-label="Add files and more"],button[data-testid="composer-plus-btn"],button[aria-label*="Attach"],button[aria-label*="צרף"]')].find(visible);
  const error=[...document.querySelectorAll('[role="alert"]')].map(e=>e.innerText).filter(Boolean).join('\n');
  const challenge=/just a moment|verify you are human|checking your browser/i.test(document.title+' '+document.body.innerText.slice(0,400));
  const login=!![...document.querySelectorAll('[data-testid="login-button"],a[href*="/auth/login"]')].find(visible);
  const links=last?[...last.querySelectorAll('a')].filter(a=>a.hasAttribute('download')||/\.(pdf|docx|xlsx|csv|txt|png)(?:[?#]|$)/i.test(a.textContent+' '+a.getAttribute('href'))).map(a=>({href:a.href,label:a.innerText})):[];
- return {composer:!!composer,value:composer?(composer.value??composer.innerText):'',send:!!send,canSend:!!send&&!send.disabled,busy,login,challenge,error,url:location.href,userCount:transcript.filter(m=>m.role==='user').length,assistantCount:assistants.length,text:last?(last.querySelector('.markdown')||last).innerText:'',transcript,links,attachments:root?.innerText||'',uploading:!!root?.querySelector('[role="progressbar"],[data-testid="upload-progress"]'),fileInput:!!document.querySelector('input[type="file"]'),attach:attach?{x:attach.getBoundingClientRect().x+attach.offsetWidth/2,y:attach.getBoundingClientRect().y+attach.offsetHeight/2}:null,sendPoint:send?{x:send.getBoundingClientRect().x+send.offsetWidth/2,y:send.getBoundingClientRect().y+send.offsetHeight/2}:null};
+ return {composer:!!composer,composerCount:candidates.length,value:composer?(composer.value??composer.innerText):'',send:!!send,canSend:!!send&&!send.disabled,busy:busy||!!last?.closest('[data-talvt-turn-state]')?.matches(':not([data-talvt-turn-state="complete"])'),login,challenge,error,url:location.href,userCount:transcript.filter(m=>m.role==='user').length,assistantCount:assistants.length,text:last?textNode(last).innerText:'',transcript,links,attachments:root?.innerText||'',uploading:!!root?.querySelector('[role="progressbar"],[data-testid="upload-progress"]'),fileInput:!!document.querySelector('input[type="file"]'),attach:attach?{x:attach.getBoundingClientRect().x+attach.offsetWidth/2,y:attach.getBoundingClientRect().y+attach.offsetHeight/2}:null,sendPoint:send?{x:send.getBoundingClientRect().x+send.offsetWidth/2,y:send.getBoundingClientRect().y+send.offsetHeight/2}:null};
 }
 function fillComposer(text){
- const el=document.querySelector('#prompt-textarea,textarea[data-testid="prompt-textarea"]');if(!el)throw Error('Composer missing');
+ const candidates=[...document.querySelectorAll('[contenteditable="true"][data-composer-markdown],#prompt-textarea,textarea[data-testid="prompt-textarea"],[data-composer-input] [contenteditable="true"][role="textbox"]')].filter(e=>e.getBoundingClientRect().width>0&&e.getBoundingClientRect().height>0);if(candidates.length!==1)throw Error('Composer missing or ambiguous');const el=candidates[0];
  el.focus();if(el.tagName==='TEXTAREA'){Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(el,text);el.dispatchEvent(new Event('input',{bubbles:true}));}
- else{document.execCommand('selectAll',false);document.execCommand('insertText',false,text);el.dispatchEvent(new InputEvent('input',{bubbles:true,inputType:'insertText',data:text}));}
+ else{const range=document.createRange();range.selectNodeContents(el);const selection=window.getSelection();selection.removeAllRanges();selection.addRange(range);
+  // Bare contenteditable inserts blank lines as <div><br></div>, which can
+  // read back as three newlines. Escaped text with explicit breaks preserves
+  // the approved prompt, including code and blank lines, without live markup.
+  if(text.includes('\n'))document.execCommand('insertHTML',false,text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>'));
+  else document.execCommand('insertText',false,text);
+  el.dispatchEvent(new InputEvent('input',{bubbles:true,inputType:'insertText',data:text}));}
 }
 function clickUploadMenu(){const e=[...document.querySelectorAll('[role="menuitem"],button')].find(e=>/upload from computer|upload files|add photos.*files|העלה.*קבצ|העלאת.*קבצ|הוספת.*קבצ/i.test(e.textContent)&&e.getBoundingClientRect().width>0);if(e)e.click();return !!e;}
 function createChatGPTWeb({getTab,fileStore,captureDownload,baseURL='https://chatgpt.com/',readyTimeout=30000,responseTimeout=600000,onChange=()=>{}}){
  const origin=new URL(baseURL).origin;let busy=false,stopped=false;
  const chatURL=url=>{try{const u=new URL(url);return u.origin===origin&&/^\/c\/[a-zA-Z0-9-]+\/?$/.test(u.pathname)?u.href:'';}catch{return '';}};
- function trusted(wc){if(stopped||wc.isDestroyed())throw Error('הטאב של GPT נסגר.');const u=new URL(wc.getURL());if(u.origin!==origin||!/^\/(?:c\/[a-zA-Z0-9-]+\/?)?$/.test(u.pathname))throw Error('פתח את ChatGPT והתחבר לחשבון בתוך North.');}
+ function trusted(wc){if(stopped||wc.isDestroyed())throw Error('הטאב של GPT נסגר.');const u=new URL(wc.getURL());if(u.origin!==origin||!/^\/(?:c\/(?:[a-zA-Z0-9-]+|local-chatgpt:[a-f0-9-]+)\/?)?$/.test(decodeURIComponent(u.pathname)))throw Error('פתח את ChatGPT והתחבר לחשבון בתוך North. ('+u.pathname+')');}
  async function exec(wc,fn,...args){trusted(wc);return wc.executeJavaScript('('+fn.toString()+')('+args.map(v=>JSON.stringify(v)).join(',')+')',true);}
  async function state(wc){return exec(wc,inspectPage);}
  function click(wc,point){trusted(wc);wc.sendInputEvent({type:'mouseMove',...point});wc.sendInputEvent({type:'mouseDown',button:'left',clickCount:1,...point});wc.sendInputEvent({type:'mouseUp',button:'left',clickCount:1,...point});}
@@ -59,8 +65,10 @@ function createChatGPTWeb({getTab,fileStore,captureDownload,baseURL='https://cha
    if(expected&&url!==expected)throw Object.assign(Error('הטאב עבר לשיחה אחרת. לא נאספה תשובה מהשיחה האחרת.'),{submitted:true});
    if(url&&!expected){expected=url;onSubmitted({...baseline,url});}
    if(s.error&&!s.busy)throw Object.assign(Error('ChatGPT: '+s.error.slice(0,600)),{submitted:true});
-   if(s.userCount>baseline.userCount&&s.assistantCount>baseline.assistantCount&&s.text.trim()&&!s.busy){
-    if(s.text===last){if(!stable)stable=Date.now();if(Date.now()-stable>2200){if(!url)throw Object.assign(Error('לא נוצר קישור קבוע לשיחה. בדוק שהחשבון מחובר.'),{submitted:true});const files=[],downloadErrors=[];for(const link of s.links.slice(0,5)){if(!captureDownload)break;try{const u=new URL(link.href);if(u.origin!==origin&&u.protocol!=='sandbox:')continue;const file=await captureDownload(wc,()=>exec(wc,function(href){const last=[...document.querySelectorAll('[data-message-author-role="assistant"]')].at(-1);const a=[...last.querySelectorAll('a')].find(a=>a.href===href);if(!a)throw Error('קישור הקובץ נעלם');a.click();},link.href));files.push(file);}catch(e){downloadErrors.push(e.message);}}return {text:s.text,url,transcript:s.transcript,files,downloadErrors};}}
+   const lastUser=s.transcript.filter(m=>m.role==='user').at(-1),lastAssistant=s.transcript.filter(m=>m.role==='assistant').at(-1);
+   const newUser=s.userCount>baseline.userCount||(baseline.lastUserId!==undefined&&lastUser?.id&&lastUser.id!==baseline.lastUserId);const newAssistant=s.assistantCount>baseline.assistantCount||(baseline.lastAssistantId!==undefined&&lastAssistant?.id&&lastAssistant.id!==baseline.lastAssistantId);
+   if(newUser&&newAssistant&&s.text.trim()&&!s.busy){
+    if(s.text===last){if(!stable)stable=Date.now();if(Date.now()-stable>2200){if(!url)throw Object.assign(Error('לא נוצר קישור קבוע לשיחה. בדוק שהחשבון מחובר.'),{submitted:true});const files=[],downloadErrors=[];for(const link of s.links.slice(0,5)){if(!captureDownload)break;try{const u=new URL(link.href);if(u.origin!==origin&&u.protocol!=='sandbox:')continue;const file=await captureDownload(wc,()=>exec(wc,function(href){const last=[...document.querySelectorAll('[data-message-author-role="assistant"],[data-content-search-unit-key$=":assistant"]')].at(-1);const a=[...last.querySelectorAll('a')].find(a=>a.href===href);if(!a)throw Error('קישור הקובץ נעלם');a.click();},link.href));files.push(file);}catch(e){downloadErrors.push(e.message);}}return {text:s.text,url,transcript:s.transcript,files,downloadErrors};}}
     else{last=s.text;stable=0;}
    }else stable=0;
    await delay(350);
@@ -75,10 +83,10 @@ function createChatGPTWeb({getTab,fileStore,captureDownload,baseURL='https://cha
    fileStore.paths(files);await upload(wc,files);await exec(wc,fillComposer,prompt);
    let s;const start=Date.now();do{s=await state(wc);if(s.canSend)break;await delay(300);}while(Date.now()-start<15000);
    if(!s.canSend||s.value.replace(/\r/g,'').trim()!==prompt.replace(/\r/g,'').trim())throw Error('הפרומפט לא הוזן בשלמותו או שליחה אינה זמינה. לא נלחץ שלח.');
-   const baseline={userCount:before.userCount,assistantCount:before.assistantCount,url:chatURL(s.url),at:Date.now()};
+   const baseline={userCount:before.userCount,assistantCount:before.assistantCount,lastUserId:before.transcript.filter(m=>m.role==='user').at(-1)?.id||'',lastAssistantId:before.transcript.filter(m=>m.role==='assistant').at(-1)?.id||'',url:chatURL(s.url),at:Date.now()};
    onSubmitted(baseline);submitted=true;click(wc,s.sendPoint);onChange();return await collect({thread,baseline,wc,onSubmitted});
   }catch(e){if(submitted)e.submitted=true;throw e;}finally{busy=false;onChange();}
  }
  return {open,send,collect,stop:()=>{stopped=true;},status:()=>({busy,provider:'chatgpt-web'})};
 }
-module.exports={createChatGPTWeb,inspectPage};
+module.exports={createChatGPTWeb,inspectPage,fillComposer};
