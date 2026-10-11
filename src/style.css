@@ -97,3 +97,8 @@ svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.85;strok
 #notice{position:absolute;z-index:20;bottom:28px;right:32px;padding:12px 20px;background:#2b4936;color:#e6f7e9;border:1px solid #76977e;border-radius:12px;box-shadow:0 12px 34px #101e158c;max-width:min(440px,90vw)}
 @media(max-width:900px){.window-controls-space{width:90px}#brand{width:100px}.toolbar{padding-left:70px;gap:3px}#studyMenu{right:11px;top:420px}.hero-brand{font-size:62px}.hero-compass{width:69px;height:69px}#shortcuts{gap:9px}.shortcut{width:91px}.shortcut-tile{width:74px;height:74px}}
 @media(max-width:630px){.actions #historyTop,.actions #downloadsTop{display:none}#rail{width:52px}:root{--rail:52px}.toolbar{padding-left:54px}.window-controls-space{width:60px}#brand{width:90px}.hero-brand{font-size:45px;gap:13px}.hero-compass{width:58px;height:58px}.shortcut{width:82px;min-height:100px}.shortcut-tile{width:66px;height:65px}#studyMenu{right:7px;top:450px}#browserMenu{width:285px}}
+
+.list-header{font-size:13px;font-weight:650;padding:13px 16px 14px;border-bottom:1px solid #4b5e51}
+.list-empty{font-size:12px;color:#a7b7ac;padding:13px 18px;line-height:1.5}
+.saved-entry{display:block;width:100%;font-size:12px;white-space:nowrap;text-overflow:ellipsis;overflow:hidden;text-align:left;border:0;border-radius:6px;color:#dfede2;background:transparent;padding:12px 14px}
+.saved-entry:hover{background:#435747}
