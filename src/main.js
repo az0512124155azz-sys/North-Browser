@@ -4,6 +4,7 @@ const fs=require('node:fs');const path=require('node:path');
 const {createTelegramBot}=require('./telegram-bot');
 const {createClassroomScanner}=require('./classroom-scanner');
 const {createStudyAgent}=require('./study-agent');
+const {readDocument,renderAnswerPDF}=require('./study-documents');
 const {createPasswordVault,createSessionKeeper,credentialOrigin}=require('./secure-profile');
 const crypto=require('node:crypto');
 const PARTITION='persist:north-main';
@@ -80,7 +81,7 @@ async function initializeStudy(){loadState();scanner=createClassroomScanner({Bro
  onNewTasks:async tasks=>{for(const t of tasks.slice(0,10)){try{await bot.toOwner(`📚 מטלה חדשה ב-Classroom\n${t.title}\nכיתה: ${t.course}\n${t.url}`)}catch(e){console.warn('Telegram tasks:',e.message)}}},
  onNewAnnouncements:async messages=>{for(const m of messages.slice(0,12)){try{await bot.toOwner(`📢 הודעה חדשה ב-Classroom\nכיתה: ${m.course}\n${String(m.text).slice(0,3100)}`)}catch(e){console.warn('Telegram notices:',e.message)}}}});
  study=createStudyAgent({store:state,save:persist,items:()=>scanner.tasks()});
- bot=createTelegramBot({readState:()=>state,writeState:persist,getToken,saveToken,scan:scanNow,tasks:()=>study.all(),classes:()=>scanner.classes(),messages:()=>scanner.notices(),draft:study.draft,addTask:study.addTask,onStatus:s=>{botStatus=s;pushStudy()}});
+ bot=createTelegramBot({readState:()=>state,writeState:persist,getToken,saveToken,scan:scanNow,tasks:()=>study.all(),classes:()=>scanner.classes(),messages:()=>scanner.notices(),draft:study.draft,addTask:study.addTask,converse:study.converse,readDocument,renderPDF:text=>renderAnswerPDF(BrowserWindow,text),onStatus:s=>{botStatus=s;pushStudy()}});
  await bot.start();
  setTimeout(()=>scanNow().catch(e=>{console.warn('Initial classroom scan:',e.message);pushStudy()}),12000).unref?.();
  scanTimer=setInterval(()=>scanNow().catch(e=>console.warn('Periodic classroom scan:',e.message)),5*60*1000);

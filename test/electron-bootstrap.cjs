@@ -2,6 +2,7 @@
 // This entry point is used only by the real Electron UI suite. Never reuse the
 // developer's signed-in profile, bot credentials, tray settings or saved files.
 const {app,shell}=require('electron');
+if(process.env.NORTH_TEST_CONVERSATION==='1')global.__northTestDocuments=require('../src/study-documents');
 app.setPath('userData',process.env.NORTH_TEST_PROFILE);
 const external=[];
 shell.openExternal=async url=>{external.push(url);};
@@ -11,13 +12,25 @@ shell.showItemInFolder=file=>folders.push(file);
 global.__northTestFolders=folders;
 if(process.env.NORTH_TEST_TELEGRAM==='1'){
  global.__northTestTelegramQueue=[];
+ global.__northTestBotSent=[];global.__northTestModelRequests=[];
  const originalFetch=global.fetch;
  global.fetch=async(url,options)=>{
+  if(process.env.NORTH_TEST_CONVERSATION==='1'){
+   if(String(url).startsWith('http://127.0.0.1:11434/api/')){
+    if(String(url).endsWith('/tags'))return {ok:true,json:async()=>({models:[{name:'qwen2.5:7b'}]})};
+    const body=JSON.parse(options.body);global.__northTestModelRequests.push(body);
+    return {ok:true,json:async()=>({message:{role:'assistant',content:global.__northTestModelRequests.length===1?'الإجابة الأولى: أربعة.\nالإجابة الثانية: شكرًا.\nזו טיוטת תשובות לפי הקובץ ששלחת.':'הנה הסבר מפורט יותר לתשובה הקודמת: 2 + 2 = 4.'}})};
+   }
+   if(String(url).startsWith('https://api.telegram.org/file/bot'))return new Response(global.__northTestPDF,{status:200});
+  }
   if(!String(url).startsWith('https://api.telegram.org/bot'))return originalFetch(url,options);
   const method=String(url).split('/').pop();let result=true;
   if(method==='getMe')result={username:'NorthStudyHelperBot'};
   if(method==='getWebhookInfo')result={url:''};
   if(method==='getUpdates'){await new Promise(r=>setTimeout(r,100));result=global.__northTestTelegramQueue.splice(0);}
+  if(method==='getFile')result={file_path:'documents/test.pdf'};
+  if(method==='sendMessage')global.__northTestBotSent.push({method,...JSON.parse(options.body)});
+  if(method==='sendDocument')global.__northTestBotSent.push({method,chat_id:options.body.get('chat_id'),document:Buffer.from(await options.body.get('document').arrayBuffer()).toString('base64')});
   return {ok:true,json:async()=>({ok:true,result})};
  };
 }

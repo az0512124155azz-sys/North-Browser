@@ -1,0 +1,17 @@
+# Telegram conversation (2.12.0)
+
+The paired owner can send ordinary messages instead of commands. `/start` introduces conversation rather than a command reference. Natural scan/list requests work without a model; numbered choices use the last task list and draft revisions use the last successfully drafted task. Existing slash commands remain supported. Owner checks precede document download and model calls.
+
+Free conversation uses the local Ollama chat endpoint and the existing Qwen model. Prefer an installed general `qwen2.5` variant; otherwise accept an installed `qwen2.5-coder` variant. No automatic model download or cloud credential is introduced. Ollama must be running; model availability and timeouts are explained in Hebrew. Response quality depends on the installed model. This is not an integration with the user's ChatGPT account.
+
+Completed conversation exchanges are stored locally in `north-study-state.json`, bounded to 20 messages, with a smaller context budget per request. The most recent document text is retained for follow-up requests. This study history is not encrypted; it is distinct from encrypted password/token storage. “תמחק את השיחה” or unlinking clears conversational context and the last answer. Task drafts remain in the existing draft store.
+
+Model tools are limited to scan, task/class/message lists, and drafting an existing validated task ID. Unknown tools are rejected, and there is no shell, website navigation, arbitrary network access, or assignment submission tool. Each request has a bounded tool loop. Task/document content is provided as untrusted study material.
+
+Telegram documents support text PDFs (20MB, 40 pages, 45,000 extracted characters maximum) and UTF-8 TXT. PDFs are parsed locally using PDF.js with eval disabled. Shaped Arabic chunks are normalized and reconstructed by direction; complex columns, tables and mixed-direction formulas can still require review. Scanned PDFs without extractable text, other file types, photos and voice messages receive an honest unsupported-format response. No OCR is provided. Incoming files are downloaded only from the fixed Telegram origin; streams are size-limited and redirects rejected. Files are not silently fetched from arbitrary attachment links.
+
+Requesting a PDF exports the answer using Chromium `printToPDF`, with escaped content, restricted CSP and RTL styling, then uploads the generated PDF through Telegram `sendDocument`. Long text answers are split across messages instead of truncated. The export is a draft; successful PDF delivery does not prove every answer is correct or that every question was solved.
+
+Validation: 19 unit tests and a new 5-scenario real Electron suite exercise PDF generation/extraction (including Arabic), an incoming document with caption, outgoing PDF upload payload, conversational follow-up, visual preview, owner restrictions and reset. Telegram HTTP and the model are simulated in this suite; local PDF parsing, Chromium output, application UI and state persistence are real. The existing 50 Electron scenarios also remain in the Windows CI suite. A separate live Ollama smoke check exercised two conversational turns and name recall on the installed model. No real Telegram message was sent by the development tests, and the user's original Arabic worksheet was not available locally.
+
+Primary API references: [Ollama chat](https://docs.ollama.com/api/chat), [Telegram Bot API](https://core.telegram.org/bots/api), [PDF.js examples](https://mozilla.github.io/pdf.js/examples/).
