@@ -14,6 +14,7 @@ if (!north || typeof north.onTabs !== 'function') {
 }
 let active = 0;
 let tabs = [];
+let addressDirty = false;
 let menuMode = 'none';
 const originalBrowserMenu = $('#browserMenu').innerHTML;
 function restoreMenu() { if ($('#browserMenu').dataset.listMode) {$('#browserMenu').innerHTML = originalBrowserMenu;delete $('#browserMenu').dataset.listMode;} }
@@ -47,6 +48,7 @@ function tabFavicon(tab) {
  return img;
 }
 function update(data) {
+ if(active!==data.active)addressDirty=false;
  active = data.active;
  tabs = data.tabs || [];
  const tabbar = $('#tabs');
@@ -74,7 +76,7 @@ function update(data) {
   tabbar.append(b);
  }
  const selected = tabs.find(t => t.id === active);
- $('#address').value = selected && selected.url !== 'north://newtab' ? selected.url : '';
+ if(!addressDirty)$('#address').value = selected && selected.url !== 'north://newtab' ? selected.url : '';
  $('#homePage').hidden = !selected || selected.url !== 'north://newtab';
  if (selected?.error && selected.error !== update.lastError) toast('Could not load this page: ' + selected.error);
  update.lastError = selected?.error || '';
@@ -93,7 +95,7 @@ function setMenus(mode) {
 }
 function closeMenus(){ setMenus('none'); }
 function newTab(){ closeMenus(); north.open('north://newtab'); }
-function navigate(url) {closeMenus(); if (!active) return north.open(url); return north.go(active,url);}
+function navigate(url) {addressDirty=false;closeMenus(); if (!active) return north.open(url); return north.go(active,url);}
 const toast = (message) => {
  const el=$('#notice');
  el.textContent=message;
@@ -212,6 +214,7 @@ $('#back').onclick=()=>north.nav(active,'back');
 $('#forward').onclick=()=>north.nav(active,'forward');
 $('#reload').onclick=()=>north.nav(active,'reload');
 $('#address-form').onsubmit=e=>{e.preventDefault();navigate($('#address').value);};
+$('#address').oninput=()=>{addressDirty=true;};
 $('#search-form').onsubmit=e=>{e.preventDefault();navigate($('#search').value);};
 document.querySelectorAll('[data-site]').forEach(b=>{b.onclick=()=>navigate(b.dataset.site);});
 $('#bookmarks').onclick=toggleBookmark;

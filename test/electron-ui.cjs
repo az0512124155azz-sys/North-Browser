@@ -55,7 +55,11 @@ async function views(){return electron.evaluate(({BrowserWindow})=>BrowserWindow
  await check('Home search submit navigates to Google',async()=>{await page.locator('#search').fill('North browser test');await click('#search-form button');await waitFor(async()=>(await selected()).url.startsWith('https://www.google.com/search?q='),'Google search');await home();});
  await check('Address submit, back, forward and reload on real embedded view',async()=>{
   await go(origin+'/one');await waitFor(async()=>(await views()).some(v=>v.title==='North fixture /one'),'fixture one');
-  await go(origin+'/two');await waitFor(async()=>(await views()).some(v=>v.title==='North fixture /two'),'fixture two');
+  await page.locator('#address').fill(origin+'/two');
+  // A late title/load event must not overwrite the address the user is typing.
+  const late=await state();await electron.evaluate(({BrowserWindow},late)=>BrowserWindow.getAllWindows().find(w=>w.webContents.getURL().endsWith('/index.html')).webContents.send('tabs:update',late),late);
+  await page.waitForTimeout(150);assert.equal(await page.locator('#address').inputValue(),origin+'/two');
+  await click('#address-form button');await waitFor(async()=>(await selected()).url===origin+'/two','typed address survives tab update');await waitFor(async()=>(await views()).some(v=>v.title==='North fixture /two'),'fixture two');
   await click('#back');await waitFor(async()=>(await selected()).url===origin+'/one','back');
   await click('#forward');await waitFor(async()=>(await selected()).url===origin+'/two','forward');
   await click('#reload');await waitFor(async()=>(await views()).some(v=>v.title==='North fixture /two'&&!v.loading),'reload');
