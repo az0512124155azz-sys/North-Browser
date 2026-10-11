@@ -1,11 +1,11 @@
 {
   "name": "north-browser",
-  "version": "2.8.0",
+  "version": "2.9.0",
   "private": true,
   "main": "src/main.js",
   "scripts": {
     "start": "electron .",
-    "check": "node --check src/main.js && node --check src/preload.js && node --check src/renderer.js",
+    "check": "node --check src/main.js && node --check src/preload.js && node --check src/renderer.js && node --check src/study-panel.js && node --check src/classroom-scanner.js && node --check src/telegram-bot.js && node --check src/study-agent.js && node --test test/study.test.js",
     "dist:win": "electron-builder --win nsis portable --publish never",
     "dist:mac": "electron-builder --mac dmg zip --publish never",
     "dist:linux": "electron-builder --linux AppImage deb --publish never"
@@ -56,5 +56,6 @@
   "author": {
     "name": "North Browser",
     "email": "north-browser@users.noreply.github.com"
-  }
+  },
+  "description": "North standalone browser with fixed Telegram study bot and internal Classroom scanner"
 }
