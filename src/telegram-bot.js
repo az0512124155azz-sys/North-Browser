@@ -113,7 +113,7 @@ function createTelegramBot({readState, writeState, getToken, saveToken, scan, ta
     const t=workflow.get(id),p=t.pending;if(!p||p.status!=='approval'||p.nonce!==nonce||(replyTo&&p.telegramMessage&&replyTo!==p.telegramMessage))return send(chatId,'האישור הזה אינו של הפרומפט העדכני. פתח את השיחה ואשר את ההצעה האחרונה.');
     workflow.choose(id);workflow.approve(id,nonce).catch(e=>send(chatId,`שיחה ${id}: ${cut(e.message,800)}`).catch(()=>{}));return send(chatId,`הפרומפט אושר לשיחה ${id}. אפתח את ChatGPT ואעדכן כשהתשובה מוכנה.`);
   }
-  async function deliverGptResult({thread,pending}){await sendAnswer(state.bot.owner,`GPT · שיחה ${thread.id} · ${thread.title}\n\n${pending.answer}`);for(const file of pending.filesReceived||[])await sendFile(state.bot.owner,file);if(pending.downloadErrors?.length)await send(state.bot.owner,'התשובה נשמרה, אבל לא הצלחתי לאסוף חלק מהקבצים. אפשר לפתוח אותם בשיחת GPT.');await send(state.bot.owner,'אפשר לכתוב מה לתקן. אציג פרומפט חדש לאישור לפני שאשלח ל־GPT.');}
+  async function deliverGptResult({thread,pending}){const owner=pending.deliveryOwner;if(!owner||String(owner)!==String(state.bot.owner))return;await sendAnswer(owner,`GPT · שיחה ${thread.id} · ${thread.title}\n\n${pending.answer}`);for(const file of pending.filesReceived||[])await sendFile(owner,file);if(pending.downloadErrors?.length)await send(owner,'התשובה נשמרה, אבל לא הצלחתי לאסוף חלק מהקבצים. אפשר לפתוח אותם בשיחת GPT.');await send(owner,'אפשר לכתוב מה לתקן. אציג פרומפט חדש לאישור לפני שאשלח ל־GPT.');}
   function formatted(task, i) {
     const completion = task.state === 'turned_in' ? '✅' : task.state === 'missing' ? '❗' : '◻️';
     return `${completion} ${i+1}. ${cut(task.title,120)}\n${cut(task.course,85)}${task.due ? ` · ${task.due}` : ''}`;
