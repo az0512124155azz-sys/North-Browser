@@ -4,6 +4,8 @@ const north = window.north;
 let active = 0;
 let tabs = [];
 let menuMode = 'none';
+const originalBrowserMenu = $('#browserMenu').innerHTML;
+function restoreMenu() { if ($('#browserMenu').dataset.listMode) {$('#browserMenu').innerHTML = originalBrowserMenu;delete $('#browserMenu').dataset.listMode;} }
 const siteDomains = new Map([
  ['classroom.google.com','classroom.google.com'],
  ['chatgpt.com','chatgpt.com'],
@@ -36,7 +38,8 @@ function update(data) {
  const tabbar = $('#tabs');
  tabbar.replaceChildren();
  for (const tab of tabs) {
-  const b = document.createElement('button');
+  const b = document.createElement('div');
+  b.tabIndex = 0;
   b.className = 'tab' + (tab.id === active ? ' active' : '');
   b.setAttribute('role','tab');
   b.setAttribute('aria-selected',String(tab.id === active));
@@ -53,6 +56,7 @@ function update(data) {
   x.onclick = event => { event.stopPropagation(); closeMenus(); north.close(tab.id); };
   b.append(img,title,x);
   b.onclick = () => { closeMenus(); north.select(tab.id); };
+  b.onkeydown = event => {if (event.key === 'Enter' || event.key === ' ') {event.preventDefault();b.click();}};
   tabbar.append(b);
  }
  const selected = tabs.find(t => t.id === active);
@@ -60,6 +64,7 @@ function update(data) {
  $('#homePage').hidden = !selected || selected.url !== 'north://newtab';
 }
 function setMenus(mode) {
+ if (mode !== 'browser') restoreMenu();
  menuMode = mode;
  $('#browserMenu').hidden = mode === 'none';
  $('#studyMenu').hidden = mode !== 'study';
@@ -91,6 +96,7 @@ function showSimpleList(which) {
  const data = JSON.parse(localStorage.getItem('north:'+which)||'[]');
  const label = which === 'bookmarks' ? 'Bookmarks' : 'History';
  const popup = $('#browserMenu');
+ popup.dataset.listMode='true';
  popup.replaceChildren();
  const head=document.createElement('div');
  head.className='list-header';
@@ -171,7 +177,8 @@ $('#profile').onclick=()=>toast('North maintains a separate browser profile on t
 $('#more').onclick=()=>setMenus(menuMode==='none'?'browser':'none');
 $('#menuScrim').onclick=closeMenus;
 $('#studyClose').onclick=()=>setMenus('browser');
-document.querySelectorAll('[data-action]').forEach(b=>b.onclick=()=>handleAction(b.dataset.action));
+$('#browserMenu').addEventListener('click',e=>{const b=e.target.closest('[data-action]');if(b)handleAction(b.dataset.action);});
+$('#studyMenu').addEventListener('click',e=>{const b=e.target.closest('[data-action]');if(b)handleAction(b.dataset.action);});
 document.addEventListener('keydown',e=>{
  if(e.key==='Escape'){closeMenus();return;}
  if(!(e.ctrlKey||e.metaKey))return;
