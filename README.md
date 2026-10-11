@@ -1,21 +1,24 @@
 # North Browser
 
-Standalone North Browser desktop app (Electron/Chromium) with a local Classroom scanner, Ollama/Qwen support, and Telegram integration.
+North is an experimental independent Chromium desktop browser. The repository was initialized from an empty GitHub repo and currently contains a **desktop browsing foundation**, not the earlier full North 2.7 Classroom automation implementation.
 
-## Status
+## Supported builds
 
-- Windows: NSIS installer and portable EXE (unsigned).
-- macOS: DMG and ZIP (unsigned and unnotarized).
-- Linux: AppImage and DEB.
-- Android/iOS: **not supported by this Electron desktop codebase**; a separate mobile implementation is required. No Android APK or iOS IPA is claimed here.
+| System | GitHub Actions output | Notes |
+| --- | --- | --- |
+| Windows x64 | NSIS Setup EXE, portable EXE | Unsigned |
+| macOS | DMG, ZIP | Unsigned / not notarized; Gatekeeper warning possible |
+| Linux x64 | AppImage, DEB | AppImage may need FUSE |
+| Android | Not available | Needs a separately developed mobile browser |
+| iPhone/iPad | Not available | Requires iOS-specific app, Xcode, provisioning and signing |
 
-The desktop code originated from North v2.7. Classroom scanning, ChatGPT interactions, and Telegram messaging are **not yet verified end-to-end against real accounts**.
+## Download
 
-## Downloading installers
+In [Actions](https://github.com/az0512124155azz-sys/North-Browser/actions/workflows/build-desktop.yml), select the latest **successful** “Build North desktop” run and download the Windows / macOS / Linux artifacts. Builds are not considered available until the corresponding job succeeds.
 
-Go to **Actions → Build North desktop**. After a successful workflow run, download the artifacts for your operating system. A manually dispatched workflow can also publish a GitHub Release with binaries.
+## Develop
 
-## Development
+Install Node.js 22+:
 
 ```sh
 npm install
@@ -23,12 +26,24 @@ npm run check
 npm start
 ```
 
-Windows users may also use `INSTALL.bat` after the source files are present.
+To package on your own machine:
+
+```sh
+npm run dist:win
+npm run dist:mac
+npm run dist:linux
+```
+
+Use the command matching your operating system, or the Windows `INSTALL.bat`.
+
+## Status and limitations
+
+The current desktop foundation has tabs, real Chromium web views, a persistent browser partition (`persist:north-main`), and Google Search. It **does not yet include** the original North v2.7 internal Classroom scanning, Qwen/Ollama automation, Telegram pipeline, Chrome profile importer, detailed scanner log, bookmarks/history persistence, or Windows background tray monitoring. Those features must be ported and verified before claiming parity with 2.7.
+
+Do not store API keys, tokens, passwords, cookies, or Chrome profile data in the repository. Google and school websites may reject embedded browser login.
+
+Native macOS installers require code signing and notarization for a smooth user install. Windows binaries are not code signed.
 
 ## Security
 
-Never commit Telegram bot tokens, Google credentials, session cookies, or Chrome profile data. The application maintains its own browser profile and does not promise to import Chrome sign-in sessions.
-
-## Source
-
-Project source files are initialized by the bundled-source import workflow and then tracked normally in this repository.
+No bot tokens or real account credentials are included.
