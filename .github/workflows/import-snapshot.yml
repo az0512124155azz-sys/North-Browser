@@ -2,7 +2,7 @@ name: Import North source snapshot
 on:
   push:
     branches: [main]
-    paths: [north-source-import.tar.xz.b64]
+    paths: [north-import.part04]
 permissions:
   contents: write
 jobs:
@@ -14,7 +14,7 @@ jobs:
           persist-credentials: true
       - name: Decode and restore reviewed source files
         run: |
-          base64 -d north-source-import.tar.xz.b64 | xz -d | tar -xf -
+          cat north-import.part01 north-import.part02 north-import.part03 north-import.part04 | base64 -d | xz -d | tar -xf -
           node --check src/main.js
           node --check src/telegram-bot.js
           node --check src/classroom-scanner.js
@@ -25,6 +25,6 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add src test
-          git rm -f north-source-import.tar.xz.b64
+          git rm -f north-import.part01 north-import.part02 north-import.part03 north-import.part04
           git commit -m 'Implement fixed North Telegram bot and internal Classroom scanner'
           git push
