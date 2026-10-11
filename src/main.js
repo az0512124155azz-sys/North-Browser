@@ -5,7 +5,7 @@ const {createTelegramBot}=require('./telegram-bot');
 const {createClassroomScanner}=require('./classroom-scanner');
 const {createStudyAgent}=require('./study-agent');
 const PARTITION='persist:north-main';
-let win,panel,tray,scanner,bot,study,active=0,seq=0,quitting=false,scanTimer=null;
+let win,panel,tray,scanner,bot,study,active=0,seq=0,quitting=false,scanTimer=null,overlaySpace=0;
 const tabs=new Map();
 const state={};let storeFile='';let botStatus={};
 function persist(){if(!storeFile)return;try{const tmp=storeFile+'.tmp';fs.writeFileSync(tmp,JSON.stringify(state,null,2),{mode:0o600});fs.renameSync(tmp,storeFile)}catch(e){console.error('Cannot save North study state:',e.message)}}
@@ -16,7 +16,7 @@ function pushStudy(){const d=studyStatus();for(const w of [panel,win])if(w&&!w.i
 function studyStatus(){return {bot:'@NorthStudyHelperBot',configured:!!getToken(),owner:bot?.getOwner()||null,botStatus,scanner:scanner?.status()||{},tasks:scanner?.tasks()?.slice(0,200)||[],classes:scanner?.classes()||[],messages:scanner?.notices()?.slice(0,40)||[],localDrafts:Object.keys(state.drafts||{}).length};}
 function normalize(input){input=String(input||'').trim();if(!input||input==='north://newtab')return 'north://newtab';if(/^https?:\/\//i.test(input))return input;if(/^[\w.-]+\.[a-z]{2,}(?::\d+)?(?:\/.*)?$/i.test(input))return 'https://'+input;return 'https://www.google.com/search?q='+encodeURIComponent(input)}
 function emitTabs(){if(!win||win.isDestroyed())return;win.webContents.send('tabs:update',{active,tabs:[...tabs.values()].map(t=>({id:t.id,title:t.title,url:t.url,loading:t.loading}))})}
-function resizeViews(){if(!win)return;const b=win.getContentBounds();for(const t of tabs.values())if(t.view)t.view.setBounds({x:0,y:91,width:Math.max(200,b.width),height:Math.max(150,b.height-91)})}
+function resizeViews(){if(!win)return;const b=win.getContentBounds();const x=68,y=141;const fullWidth=Math.max(150,b.width-x);const width=Math.max(260,fullWidth-Math.min(overlaySpace,Math.max(0,fullWidth-260)));for(const t of tabs.values())if(t.view)t.view.setBounds({x,y,width,height:Math.max(150,b.height-y)})}
 function select(id){if(!win||!tabs.has(id))return;const old=tabs.get(active);if(old?.view)win.contentView.removeChildView(old.view);active=id;const t=tabs.get(id);if(t.view){win.contentView.addChildView(t.view);resizeViews()}emitTabs()}
 function add(raw='north://newtab'){const url=normalize(raw),id=++seq,t={id,url,title:url==='north://newtab'?'New tab':url,loading:false,view:null};tabs.set(id,t);
  if(url!=='north://newtab'){
@@ -44,13 +44,15 @@ async function initializeStudy(){loadState();scanner=createClassroomScanner({Bro
  }
 app.whenReady().then(async()=>{
  session.fromPartition(PARTITION);
- win=new BrowserWindow({width:1370,height:880,minWidth:850,minHeight:540,backgroundColor:'#1c2923',title:'North Browser',icon:path.join(__dirname,'north-icon.png'),webPreferences:{preload:path.join(__dirname,'preload.js'),contextIsolation:true,nodeIntegration:false,sandbox:true}});
+ win=new BrowserWindow({width:1370,height:880,minWidth:850,minHeight:540,backgroundColor:'#1c2923',title:'North Browser',titleBarStyle:process.platform==='win32'?'hidden':(process.platform==='darwin'?'hiddenInset':'default'),...(process.platform==='win32'?{titleBarOverlay:{color:'#17231e',symbolColor:'#e9efea',height:48}}:{}),icon:path.join(__dirname,'north-icon.png'),webPreferences:{preload:path.join(__dirname,'preload.js'),contextIsolation:true,nodeIntegration:false,sandbox:true}});
  win.setMenuBarVisibility(false);win.loadFile(path.join(__dirname,'index.html'));win.on('resize',resizeViews);win.on('close',event=>{if(!quitting&&tray){event.preventDefault();win.hide()}});
  win.webContents.once('did-finish-load',()=>add());createTray();
  ipcMain.handle('north:open',(_e,u)=>add(u));ipcMain.handle('north:select',(_e,id)=>select(id));ipcMain.handle('north:close',(_e,id)=>close(id));
  ipcMain.handle('north:go',(_e,id,u)=>{const t=tabs.get(id);if(!t)return;u=normalize(u);if(u==='north://newtab'){close(id);return add()}if(!t.view){const newid=add(u);close(id);return newid}t.view.webContents.loadURL(u).catch(()=>{});return id});
  ipcMain.handle('north:nav',(_e,id,action)=>{const wc=tabs.get(id)?.view?.webContents;if(!wc)return;if(action==='back'&&wc.navigationHistory.canGoBack())wc.navigationHistory.goBack();if(action==='forward'&&wc.navigationHistory.canGoForward())wc.navigationHistory.goForward();if(action==='reload')wc.reload()});
  ipcMain.handle('north:external',(_e,url)=>{if(/^https:\/\//.test(url))return shell.openExternal(url)});
+ ipcMain.handle('north:overlay',(_e,pixels)=>{overlaySpace=Math.max(0,Math.min(700,Number(pixels)||0));resizeViews();return true});
+ ipcMain.handle('north:quit',()=>{quitting=true;app.quit()});
  ipcMain.handle('study:panel',panelWindow);
  ipcMain.handle('study:status',()=>studyStatus());
  ipcMain.handle('study:setToken',async(_e,value)=>{if(!bot)throw Error('Bot is not ready');return bot.verifyAndSave(String(value||''))});
