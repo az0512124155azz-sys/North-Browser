@@ -15,6 +15,7 @@ jobs:
       - name: Decode and restore reviewed source files
         run: |
           cat north-import.part01 north-import.part02 north-import.part03 north-import.part04 | base64 -d | xz -d | tar -xf -
+          sed -i "s@require('./@require('../src/@g" test/study.test.js
           node --check src/main.js
           node --check src/telegram-bot.js
           node --check src/classroom-scanner.js
