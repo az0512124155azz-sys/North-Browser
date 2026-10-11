@@ -8,6 +8,6 @@ const out=path.resolve('test-results/electron/live-gpt');fs.mkdirSync(out,{recur
  const page=await app.firstWindow();await page.waitForSelector('.tab');
  const id=await page.evaluate(()=>window.north.gpt.create('Read-only website probe'));
  try{await page.evaluate(id=>window.north.gpt.open(id),id);result.ready=true;}catch(e){result.ready=false;result.readinessError=e.message;}
- result.website=await app.evaluate(async({webContents})=>{const wc=webContents.getAllWebContents().find(w=>w.getURL().startsWith('https://chatgpt.com/'));if(!wc)return null;const {inspectPage}=require('./src/gpt-web');return{title:wc.getTitle(),...await wc.executeJavaScript('('+inspectPage.toString()+')()')};});
+ result.website=await app.evaluate(async({webContents},script)=>{const wc=webContents.getAllWebContents().find(w=>w.getURL().startsWith('https://chatgpt.com/'));if(!wc)return null;return{title:wc.getTitle(),...await wc.executeJavaScript(script)};},'('+require('../src/gpt-web').inspectPage.toString()+')()');
  await page.screenshot({path:path.join(out,'website.png')});
 }catch(e){result.error=e.message;process.exitCode=1;}finally{fs.writeFileSync(path.join(out,'report.json'),JSON.stringify(result,null,2));console.log(JSON.stringify(result));if(app)await app.close();}})();
