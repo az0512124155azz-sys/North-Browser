@@ -21,7 +21,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: npm install --no-audit --no-fund
+      - run: npm ci --no-audit --no-fund
       - run: npm run check
   build:
     needs: verify
@@ -44,7 +44,17 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: npm install --no-audit --no-fund
+      - run: npm ci --no-audit --no-fund
+      - name: Real Electron UI regression on Windows
+        if: matrix.target == 'win'
+        run: npm run test:electron
+      - name: Upload Electron runtime logs and screenshots
+        if: always() && matrix.target == 'win'
+        uses: actions/upload-artifact@v4
+        with:
+          name: North-Windows-Electron-tests
+          path: test-results/electron/
+          if-no-files-found: error
       - run: npm run dist:${{ matrix.target }}
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'

@@ -1,17 +1,29 @@
 'use strict';
+// contextBridge exposes a non-configurable window.north property. Keep the
+// alias in function scope: a global lexical `const north` prevents this entire
+// script from executing in Electron, before any click handlers are attached.
+(() => {
 const $ = s => document.querySelector(s);
 const north = window.north;
+if (!north || typeof north.onTabs !== 'function') {
+ console.error('North preload bridge is unavailable');
+ const notice = $('#notice');
+ notice.textContent = 'North could not start. Please restart the application.';
+ notice.hidden = false;
+ return;
+}
 let active = 0;
 let tabs = [];
 let menuMode = 'none';
 const originalBrowserMenu = $('#browserMenu').innerHTML;
 function restoreMenu() { if ($('#browserMenu').dataset.listMode) {$('#browserMenu').innerHTML = originalBrowserMenu;delete $('#browserMenu').dataset.listMode;} }
 const siteDomains = new Map([
- ['classroom.google.com','classroom.google.com'],
- ['chatgpt.com','chatgpt.com'],
- ['students.myofek.cet.ac.il','students.myofek.cet.ac.il'],
- ['www.galim.org.il','galim.org.il'],
- ['moodle.org','moodle.org']
+ ['classroom.google.com','classroom'],
+ ['chatgpt.com','chatgpt'],
+ ['students.myofek.cet.ac.il','ofek'],
+ ['www.galim.org.il','galim'],
+ ['galim.org.il','galim'],
+ ['moodle.org','moodle']
 ]);
 const iconHref = id => '#i-' + id;
 function icon(id) {
@@ -27,7 +39,9 @@ function tabFavicon(tab) {
  if (tab.url === 'north://newtab') return icon('compass');
  try {
   const host = new URL(tab.url).hostname;
-  img.src = 'https://www.google.com/s2/favicons?domain=' + encodeURIComponent(siteDomains.get(host)||host) + '&sz=64';
+  const site = siteDomains.get(host);
+  if (!site) return icon('compass');
+  img.src = './icons/' + site + '.svg';
  } catch { return icon('compass'); }
  img.onerror = () => { img.replaceWith(icon('compass')); };
  return img;
@@ -62,9 +76,11 @@ function update(data) {
  const selected = tabs.find(t => t.id === active);
  $('#address').value = selected && selected.url !== 'north://newtab' ? selected.url : '';
  $('#homePage').hidden = !selected || selected.url !== 'north://newtab';
+ if (selected?.error && selected.error !== update.lastError) toast('Could not load this page: ' + selected.error);
+ update.lastError = selected?.error || '';
 }
 function setMenus(mode) {
- if (mode !== 'browser') restoreMenu();
+ restoreMenu();
  menuMode = mode;
  document.body.classList.toggle('menu-active',mode!=='none');
  $('#browserMenu').hidden = mode === 'none';
@@ -94,7 +110,7 @@ async function runScan() {
 }
 function showSimpleList(which) {
  closeMenus();
- const data = JSON.parse(localStorage.getItem('north:'+which)||'[]');
+ const data = readList(which);
  const label = which === 'bookmarks' ? 'Bookmarks' : 'History';
  const popup = $('#browserMenu');
  popup.dataset.listMode='true';
@@ -117,13 +133,34 @@ function showSimpleList(which) {
   popup.append(btn);
  }
  popup.hidden=false;$('#menuScrim').hidden=false;
- menuMode='browser';$('#more').setAttribute('aria-expanded','true');
+ menuMode='browser';document.body.classList.add('menu-active');$('#more').setAttribute('aria-expanded','true');
  if(north.overlay)north.overlay(Math.min(320,Math.max(0,window.innerWidth-520)));
 }
+function readList(which) {
+ try {const data=JSON.parse(localStorage.getItem('north:'+which)||'[]');return Array.isArray(data)?data.filter(x=>x&&typeof x.url==='string'):[];}
+ catch {return [];}
+}
+async function showDownloads() {
+ closeMenus();
+ try {
+  const data=await north.downloads();
+  renderDownloads(data);
+  const popup=$('#browserMenu');
+  popup.hidden=false;$('#menuScrim').hidden=false;menuMode='browser';document.body.classList.add('menu-active');$('#more').setAttribute('aria-expanded','true');
+  await north.overlay(Math.min(320,Math.max(0,window.innerWidth-520)));
+ }catch(e){toast('Downloads error: '+e.message);}
+}
+function renderDownloads(data) {
+ const popup=$('#browserMenu');popup.dataset.listMode='downloads';popup.replaceChildren();
+ const head=document.createElement('div');head.className='list-header';head.textContent='Downloads';popup.append(head);
+ if(!data.length){const p=document.createElement('p');p.className='list-empty';p.textContent='No downloads in this session.';popup.append(p);}
+ for(const item of data){const b=document.createElement('button');b.className='saved-entry';b.textContent=item.name+' · '+item.state;b.disabled=item.state!=='completed';b.onclick=()=>north.showDownload(item.id);popup.append(b);}
+}
+north.onDownloads(data=>{if($('#browserMenu').dataset.listMode==='downloads')renderDownloads(data);});
 function recordVisit(t) {
  if(!t||t.url==='north://newtab'||t.url===recordVisit.last)return;
  recordVisit.last=t.url;
- const history=JSON.parse(localStorage.getItem('north:history')||'[]');
+ const history=readList('history');
  history.unshift({url:t.url,title:t.title||t.url,at:Date.now()});
  const seen=new Set();
  localStorage.setItem('north:history',JSON.stringify(history.filter(x=>!seen.has(x.url)&&seen.add(x.url)).slice(0,100)));
@@ -131,7 +168,7 @@ function recordVisit(t) {
 function toggleBookmark() {
  const t=tabs.find(x=>x.id===active);
  if(!t||t.url==='north://newtab'){showSimpleList('bookmarks');return;}
- const items=JSON.parse(localStorage.getItem('north:bookmarks')||'[]');
+ const items=readList('bookmarks');
  const idx=items.findIndex(x=>x.url===t.url);
  if(idx>=0){items.splice(idx,1);toast('Bookmark removed');}
  else {items.unshift({url:t.url,title:t.title||t.url});toast('Page bookmarked');}
@@ -140,14 +177,14 @@ function toggleBookmark() {
 function handleAction(action) {
  switch(action) {
   case 'newtab': newTab(); break;
-  case 'newwindow': closeMenus();toast('Opening a separate window is not available in this version.');break;
+  case 'newwindow': closeMenus();north.newWindow().catch(e=>toast(e.message));break;
   case 'study': setMenus('study');break;
   case 'activity':case 'tasks':case 'assistant':case 'settings': studyPanel();break;
   case 'telegram':closeMenus();north.study.openBot().catch(e=>toast(e.message));break;
   case 'scan':runScan();break;
   case 'history':showSimpleList('history');break;
   case 'bookmarks':showSimpleList('bookmarks');break;
-  case 'downloads':closeMenus();toast('Downloads are managed by Chromium.');break;
+  case 'downloads':showDownloads();break;
   case 'help':closeMenus();toast('North Browser — Study Assistant and Google Search.');break;
   case 'exit':closeMenus();if(north.quit)north.quit();else toast('Exit using your system tray icon.');break;
  }
@@ -156,6 +193,8 @@ north.onTabs(data=>{
  update(data);
  recordVisit(tabs.find(t=>t.id===active));
 });
+// Also hydrate after renderer reload, when the initial tabs event has passed.
+north.tabs().then(update).catch(e=>toast('Could not load tabs: '+e.message));
 $('#add').onclick=newTab;
 $('#railNew').onclick=newTab;
 $('#addBookmark').onclick=newTab;
@@ -184,6 +223,7 @@ document.addEventListener('keydown',e=>{
  if(e.key==='Escape'){closeMenus();return;}
  if(!(e.ctrlKey||e.metaKey))return;
  if(e.key.toLowerCase()==='t'){e.preventDefault();newTab();}
+ if(e.key.toLowerCase()==='n'){e.preventDefault();closeMenus();north.newWindow().catch(error=>toast(error.message));}
  if(e.key.toLowerCase()==='l'){e.preventDefault();$('#address').focus();$('#address').select();}
  if(e.key.toLowerCase()==='w'){e.preventDefault();closeMenus();north.close(active);}
  if(e.key.toLowerCase()==='d'){e.preventDefault();toggleBookmark();}
@@ -191,3 +231,4 @@ document.addEventListener('keydown',e=>{
 });
 window.addEventListener('resize',()=>{if(menuMode!=='none')setMenus(menuMode);});
 document.querySelectorAll('.site-icon img,.shortcut-tile img').forEach(img=>img.onerror=()=>{img.style.display='none'});
+})();

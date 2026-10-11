@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' https://www.google.com data:; img-src 'self' https://www.google.com data:; style-src 'self'; script-src 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'">
 <title>North Browser</title>
 <link rel="stylesheet" href="./style.css">
 </head>
@@ -70,11 +70,11 @@
  </aside>
  <div id="workspace">
   <section id="bookmarkbar" aria-label="Quick access">
-   <button class="bookmark-item" data-site="https://classroom.google.com/"><span class="site-icon"><img alt="" src="https://www.google.com/s2/favicons?domain=classroom.google.com&amp;sz=64"><span class="site-fallback classroom">C</span></span>Classroom</button>
-   <button class="bookmark-item" data-site="https://chatgpt.com/"><span class="site-icon"><img alt="" src="https://www.google.com/s2/favicons?domain=chatgpt.com&amp;sz=64"><span class="site-fallback chatgpt">✺</span></span>ChatGPT</button>
-   <button class="bookmark-item" data-site="https://students.myofek.cet.ac.il/"><span class="site-icon"><img alt="" src="https://www.google.com/s2/favicons?domain=students.myofek.cet.ac.il&amp;sz=64"><span class="site-fallback ofek">O</span></span>Ofek</button>
-   <button class="bookmark-item" data-site="https://www.galim.org.il/"><span class="site-icon"><img alt="" src="https://www.google.com/s2/favicons?domain=galim.org.il&amp;sz=64"><span class="site-fallback galim">G</span></span>Galim</button>
-   <button class="bookmark-item" data-site="https://moodle.org/"><span class="site-icon"><img alt="" src="https://www.google.com/s2/favicons?domain=moodle.org&amp;sz=64"><span class="site-fallback moodle">M</span></span>Moodle</button>
+   <button class="bookmark-item" data-site="https://classroom.google.com/"><span class="site-icon"><img alt="" src="./icons/classroom.svg"><span class="site-fallback classroom">C</span></span>Classroom</button>
+   <button class="bookmark-item" data-site="https://chatgpt.com/"><span class="site-icon"><img alt="" src="./icons/chatgpt.svg"><span class="site-fallback chatgpt">✺</span></span>ChatGPT</button>
+   <button class="bookmark-item" data-site="https://students.myofek.cet.ac.il/"><span class="site-icon"><img alt="" src="./icons/ofek.svg"><span class="site-fallback ofek">O</span></span>Ofek</button>
+   <button class="bookmark-item" data-site="https://www.galim.org.il/"><span class="site-icon"><img alt="" src="./icons/galim.svg"><span class="site-fallback galim">G</span></span>Galim</button>
+   <button class="bookmark-item" data-site="https://moodle.org/"><span class="site-icon"><img alt="" src="./icons/moodle.svg"><span class="site-fallback moodle">M</span></span>Moodle</button>
    <button id="addBookmark" class="bookmark-add" title="New tab"><svg><use href="#i-plus"/></svg></button>
   </section>
   <main id="homePage">
@@ -82,11 +82,11 @@
     <div class="hero-brand"><svg class="hero-compass"><use href="#i-compass"/></svg><span>North</span></div>
     <form id="search-form"><svg class="search-glass"><use href="#i-search"/></svg><input id="search" spellcheck="false" placeholder="Search Google or enter a URL" aria-label="Search Google"><button type="submit" class="search-action" aria-label="Search"><svg><use href="#i-next"/></svg></button></form>
     <div id="shortcuts">
-     <button data-site="https://classroom.google.com/" class="shortcut"><span class="shortcut-tile"><img alt="" src="https://www.google.com/s2/favicons?domain=classroom.google.com&amp;sz=64"><span class="shortcut-fallback classroom">C</span></span><span>Classroom</span></button>
-     <button data-site="https://chatgpt.com/" class="shortcut"><span class="shortcut-tile"><img alt="" src="https://www.google.com/s2/favicons?domain=chatgpt.com&amp;sz=64"><span class="shortcut-fallback chatgpt">✺</span></span><span>ChatGPT</span></button>
-     <button data-site="https://students.myofek.cet.ac.il/" class="shortcut"><span class="shortcut-tile"><img alt="" src="https://www.google.com/s2/favicons?domain=students.myofek.cet.ac.il&amp;sz=64"><span class="shortcut-fallback ofek">O</span></span><span>Ofek</span></button>
-     <button data-site="https://www.galim.org.il/" class="shortcut"><span class="shortcut-tile"><img alt="" src="https://www.google.com/s2/favicons?domain=galim.org.il&amp;sz=64"><span class="shortcut-fallback galim">G</span></span><span>Galim</span></button>
-     <button data-site="https://moodle.org/" class="shortcut"><span class="shortcut-tile"><img alt="" src="https://www.google.com/s2/favicons?domain=moodle.org&amp;sz=64"><span class="shortcut-fallback moodle">M</span></span><span>Moodle</span></button>
+     <button data-site="https://classroom.google.com/" class="shortcut"><span class="shortcut-tile"><img alt="" src="./icons/classroom.svg"><span class="shortcut-fallback classroom">C</span></span><span>Classroom</span></button>
+     <button data-site="https://chatgpt.com/" class="shortcut"><span class="shortcut-tile"><img alt="" src="./icons/chatgpt.svg"><span class="shortcut-fallback chatgpt">✺</span></span><span>ChatGPT</span></button>
+     <button data-site="https://students.myofek.cet.ac.il/" class="shortcut"><span class="shortcut-tile"><img alt="" src="./icons/ofek.svg"><span class="shortcut-fallback ofek">O</span></span><span>Ofek</span></button>
+     <button data-site="https://www.galim.org.il/" class="shortcut"><span class="shortcut-tile"><img alt="" src="./icons/galim.svg"><span class="shortcut-fallback galim">G</span></span><span>Galim</span></button>
+     <button data-site="https://moodle.org/" class="shortcut"><span class="shortcut-tile"><img alt="" src="./icons/moodle.svg"><span class="shortcut-fallback moodle">M</span></span><span>Moodle</span></button>
     </div>
    </div>
   </main>

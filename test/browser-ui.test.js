@@ -26,7 +26,7 @@ test('Electron views respect the left sidebar and bookmark bar',()=>{
  const main=src('main.js');
  assert.match(main,/const x=68,y=141/);
  assert.match(main,/north:overlay/);
- assert.match(main,/resizeViews\(\)/);
+ assert.match(main,/resizeViews\(b\)/);
 });
 test('Browser menu can open Study Assistant and restores menu content',()=>{
  const renderer=src('renderer.js');

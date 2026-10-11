@@ -1,4 +1,6 @@
 'use strict';
+(() => {
+const north=window.north;
 const $=s=>document.querySelector(s);let data={};
 function update(d){data=d;
  $('#botName').textContent=d.bot||'@NorthStudyHelperBot';
@@ -14,7 +16,8 @@ function update(d){data=d;
 async function refresh(){try{update(await north.study.status())}catch(e){$('#log').textContent=e.message}}
 $('#refresh').onclick=refresh;
 $('#saveToken').onclick=async()=>{const t=$('#token').value.trim();if(!t)return;$('#log').textContent='מאמת את זהות הבוט…';try{await north.study.setToken(t);$('#token').value='';$('#log').textContent='הבוט אומת ונשמר בהצפנה';refresh()}catch(e){$('#log').textContent='חיבור נכשל: '+e.message}};
-$('#openBot').onclick=()=>north.study.openBot();
+$('#openBot').onclick=()=>north.study.openBot().catch(e=>{$('#log').textContent=e.message});
 $('#pair').onclick=async()=>{try{const x=await north.study.pair();$('#pairCode').textContent=x?x.code:'כבר קיים צ׳אט משויך';}catch(e){$('#log').textContent=e.message}};
 $('#scanNow').onclick=async()=>{$('#log').textContent='סורק…';try{const r=await north.study.scan();$('#log').textContent='סריקה הסתיימה: '+JSON.stringify(r);refresh()}catch(e){$('#log').textContent='שגיאה: '+e.message}};
 north.study.onChange(update);refresh();
+})();

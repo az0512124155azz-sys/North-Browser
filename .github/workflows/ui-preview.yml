@@ -23,6 +23,8 @@ jobs:
           html=re.sub(r'<meta http-equiv="Content-Security-Policy"[^>]*>', '', html)
           injection="""<script>
           window.north={
+            tabs:()=>Promise.resolve({active:1,tabs:[{id:1,title:'New Tab',url:'north://newtab',loading:false}]}),
+            onDownloads:()=>{},downloads:()=>Promise.resolve([]),showDownload:()=>Promise.resolve(),newWindow:()=>Promise.resolve(),
             onTabs:f=>setTimeout(()=>f({active:1,tabs:[{id:1,title:'New Tab',url:'north://newtab',loading:false}]}),0),
             overlay:()=>Promise.resolve(),open:()=>Promise.resolve(),close:()=>Promise.resolve(),
             select:()=>Promise.resolve(),go:()=>Promise.resolve(),nav:()=>Promise.resolve(),
