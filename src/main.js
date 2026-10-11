@@ -34,7 +34,7 @@ function tabState(b){return {active:b.active,tabs:[...b.tabs.values()].map(t=>({
 function emitTabs(b){if(!b.win.isDestroyed())b.win.webContents.send('tabs:update',tabState(b))}
 function downloadState(){return [...downloads.values()].map(({id,name,url,state})=>({id,name,url,state}))}
 function emitDownloads(){for(const b of browsers.values())if(!b.win.isDestroyed())b.win.webContents.send('downloads:update',downloadState())}
-function resizeViews(b){if(b.win.isDestroyed())return;const bounds=b.win.getContentBounds();const x=68,y=141;const fullWidth=Math.max(150,bounds.width-x);const width=Math.max(260,fullWidth-Math.min(b.overlaySpace,Math.max(0,fullWidth-260)));for(const t of b.tabs.values())if(t.view)t.view.setBounds({x,y,width,height:Math.max(150,bounds.height-y)})}
+function resizeViews(b){if(b.win.isDestroyed())return;let bounds=b.win.getContentBounds();if(b.win.isMinimized()||bounds.width<400||bounds.height<300)bounds=b.viewport||b.win.getNormalBounds();else b.viewport=bounds;const x=68,y=141;const fullWidth=Math.max(150,bounds.width-x);const width=Math.max(260,fullWidth-Math.min(b.overlaySpace,Math.max(0,fullWidth-260)));for(const t of b.tabs.values())if(t.view)t.view.setBounds({x,y,width,height:Math.max(150,bounds.height-y)})}
 function select(b,id){if(!b.tabs.has(id))return;const old=b.tabs.get(b.active);if(old?.view)b.win.contentView.removeChildView(old.view);b.active=id;const t=b.tabs.get(id);if(t.view){b.win.contentView.addChildView(t.view);resizeViews(b)}emitTabs(b)}
 function destroyView(b,t){if(!t.view)return;if(t.id===b.active)b.win.contentView.removeChildView(t.view);t.view.webContents.close();t.view=null}
 function navigateTab(b,t,raw){
@@ -70,8 +70,8 @@ function passwordPanelSender(e){if(e.sender!==passwordWindow?.webContents||e.sen
 function createBrowser(){
  const w=new BrowserWindow({width:1370,height:880,minWidth:850,minHeight:540,backgroundColor:'#1c2923',title:'North Browser',titleBarStyle:process.platform==='win32'?'hidden':(process.platform==='darwin'?'hiddenInset':'default'),...(process.platform==='win32'?{titleBarOverlay:{color:'#17231e',symbolColor:'#e9efea',height:48}}:{}),icon:path.join(__dirname,'north-icon.png'),webPreferences:{preload:path.join(__dirname,'preload.js'),contextIsolation:true,nodeIntegration:false,sandbox:true}});
  const contentsId=w.webContents.id;
- const b={win:w,tabs:new Map(),active:0,seq:0,overlaySpace:0};browsers.set(contentsId,b);
- w.setMenuBarVisibility(false);w.on('resize',()=>resizeViews(b));
+ const b={win:w,tabs:new Map(),active:0,seq:0,overlaySpace:0,viewport:w.getContentBounds()};browsers.set(contentsId,b);
+ w.setMenuBarVisibility(false);w.on('resize',()=>resizeViews(b));for(const event of ['restore','show','maximize','unmaximize'])w.on(event,()=>setImmediate(()=>resizeViews(b)));
  w.on('close',event=>{if(w===win&&!quitting&&tray){event.preventDefault();w.hide()}});
  w.on('closed',()=>{for(const t of b.tabs.values())if(t.view&&!t.view.webContents.isDestroyed())t.view.webContents.close();browsers.delete(contentsId)});
  w.webContents.on('preload-error',(_e,_file,error)=>console.error('North preload failed:',error.message));
@@ -82,14 +82,15 @@ function createBrowser(){
 function panelWindow(){if(panel&&!panel.isDestroyed()){panel.focus();return}panel=new BrowserWindow({parent:win,width:600,height:760,minWidth:420,minHeight:480,backgroundColor:'#1a2420',title:'North Study Assistant',autoHideMenuBar:true,webPreferences:{preload:path.join(__dirname,'preload.js'),sandbox:true,contextIsolation:true,nodeIntegration:false}});panel.loadFile(path.join(__dirname,'study-panel.html'));panel.webContents.on('did-finish-load',pushStudy)}
 function createTray(){try{tray=new Tray(path.join(__dirname,'north-icon.png'));tray.setToolTip('North Browser - study scanner');tray.setContextMenu(Menu.buildFromTemplate([{label:'Open North',click:()=>{win.show();win.focus()}},{label:'Study Assistant',click:()=>{win.show();panelWindow()}},{type:'separator'},{label:'Exit North',click:()=>{quitting=true;app.quit()}}]));tray.on('double-click',()=>{win.show();win.focus()})}catch(e){console.warn('Tray not available:',e.message)}}
 async function scanNow(){const result=await scanner.scan();pushStudy();return result}
-function gptSender(e){if(e.senderFrame!==e.sender.mainFrame||![panel?.webContents,gptHistoryWindow?.webContents,...[...browsers.values()].map(b=>b.win.webContents)].includes(e.sender))throw Error('Invalid GPT workspace sender');}
+function gptSender(e){if(e.senderFrame!==e.sender.mainFrame||![panel,gptHistoryWindow,...[...browsers.values()].map(b=>b.win)].filter(w=>w&&!w.isDestroyed()).some(w=>w.webContents===e.sender))throw Error('Invalid GPT workspace sender');}
 function gptHistory(){if(gptHistoryWindow&&!gptHistoryWindow.isDestroyed()){gptHistoryWindow.show();gptHistoryWindow.focus();return;}gptHistoryWindow=new BrowserWindow({width:1080,height:800,minWidth:750,minHeight:550,title:'North — שיחות GPT',backgroundColor:'#192620',autoHideMenuBar:true,webPreferences:{preload:path.join(__dirname,'preload.js'),sandbox:true,contextIsolation:true,nodeIntegration:false}});gptHistoryWindow.loadFile(path.join(__dirname,'gpt-history.html'));}
 async function getGptTab(thread,url){
+ if(!win||win.isDestroyed())win=createBrowser();if(win.isMinimized())win.restore();win.show();
  let entry=gptTabs.get(thread.id);
  if(!entry||entry.b.win.isDestroyed()||!entry.t.view||entry.t.view.webContents.isDestroyed()){
   if(!win||win.isDestroyed())win=createBrowser();const b=browsers.get(win.webContents.id),id=add(b,url);entry={b,t:b.tabs.get(id)};gptTabs.set(thread.id,entry);
  }else if(entry.t.view.webContents.getURL()!==url&&!entry.t.view.webContents.isLoading())navigateTab(entry.b,entry.t,url);
- select(entry.b,entry.t.id);entry.b.win.show();entry.b.win.focus();return entry.t.view.webContents;
+ if(entry.b.win.isMinimized())entry.b.win.restore();entry.b.win.show();select(entry.b,entry.t.id);resizeViews(entry.b);entry.b.win.focus();return entry.t.view.webContents;
 }
 async function captureGptDownload(wc,trigger){
  const dir=path.join(app.getPath('userData'),'north-gpt-downloads');fs.mkdirSync(dir,{recursive:true});
