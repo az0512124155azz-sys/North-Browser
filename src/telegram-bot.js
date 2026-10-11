@@ -6,7 +6,7 @@ const cut = (s, n = 3500) => String(s || '').slice(0, n);
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 function createTelegramBot({readState, writeState, getToken, saveToken, scan, tasks, classes, messages=async()=>[], draft, addTask, onStatus = () => {}, transport = fetch}) {
-  let running = false, generation = 0, pairingCode = null, pairingUntil = 0;
+  let running = false, generation = 0, pairingCode = null, pairingNonce = null, pairingUntil = 0;
   const state = readState();
   state.bot = state.bot || {owner: null, offset: 0};
   const persist = () => writeState(state);
@@ -46,9 +46,12 @@ function createTelegramBot({readState, writeState, getToken, saveToken, scan, ta
   }
   function createPairingCode() {
     if (state.bot.owner) return null;
-    pairingCode = String(crypto.randomInt(100000,1000000));
-    pairingUntil = Date.now() + 10*60*1000;
-    return {code:pairingCode, expiresAt:pairingUntil, username:FIXED_USERNAME};
+    if(!pairingCode||pairingUntil<=Date.now()){
+      pairingCode = String(crypto.randomInt(100000,1000000));
+      pairingNonce = crypto.randomBytes(24).toString('hex');
+      pairingUntil = Date.now() + 10*60*1000;
+    }
+    return {code:pairingCode, expiresAt:pairingUntil, username:FIXED_USERNAME,url:`https://t.me/${FIXED_USERNAME}?start=link_${pairingNonce}`};
   }
   function unlink() {state.bot.owner=null;persist();return createPairingCode();}
   async function send(chatId, text, keyboard) {
@@ -118,9 +121,10 @@ function createTelegramBot({readState, writeState, getToken, saveToken, scan, ta
     const id=String(chat.id),value=String(message?.text||callback?.data||'').trim();
     if(!state.bot.owner){
       const m=/^\/link\s+(\d{6})$/.exec(value);
-      const valid=!!m&&!!pairingCode&&pairingUntil>Date.now()&&crypto.timingSafeEqual(Buffer.from(m[1]),Buffer.from(pairingCode));
+      const deep=/^\/start(?:@NorthStudyHelperBot)?\s+link_([a-f0-9]{48})$/i.exec(value);
+      const valid=pairingUntil>Date.now()&&((!!m&&!!pairingCode&&crypto.timingSafeEqual(Buffer.from(m[1]),Buffer.from(pairingCode)))||(!!deep&&!!pairingNonce&&crypto.timingSafeEqual(Buffer.from(deep[1]),Buffer.from(pairingNonce))));
       if(!valid)return send(id,'יש לבצע צימוד מתוך North. הזן /link ואחריו קוד הצימוד המוצג באפליקציה.');
-      state.bot.owner=id;pairingCode=null;persist();progress({connected:true});return send(id,'✅ חיברת את North ל־@NorthStudyHelperBot. שלח /help לפקודות.');
+      state.bot.owner=id;pairingCode=null;pairingNonce=null;persist();progress({connected:true});return send(id,'✅ North מחובר. אפשר לשלוח /scan לסריקה או /tasks להצגת המשימות.');
     }
     if(state.bot.owner!==id)return; // Strict owner-only command handling
     if(value.startsWith('run:'))return runDraft(id,value.slice(4),'');

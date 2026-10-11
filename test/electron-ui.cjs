@@ -33,7 +33,7 @@ async function views(){return electron.evaluate(({BrowserWindow})=>BrowserWindow
  processHandle=electron.process();
  for(const stream of [processHandle.stdout,processHandle.stderr])stream.on('data',b=>{runtime+=b.toString();});
  page=await electron.firstWindow();
- const monitor=p=>p.on('pageerror',e=>{if(/^file:.*\/(index|study-panel)\.html$/.test(p.url()))report.errors.push(e.message);else report.remoteErrors.push({url:p.url(),message:e.message});});
+ const monitor=p=>p.on('pageerror',e=>{if(/^file:.*\/(index|study-panel|passwords)\.html$/.test(p.url()))report.errors.push(e.message);else report.remoteErrors.push({url:p.url(),message:e.message});});
  monitor(page);electron.on('window',monitor);
  await check('Preload bridge, renderer startup and initial tab',async()=>{
   await waitFor(async()=>(await page.locator('.tab').count())===1,'initial tab');
@@ -92,7 +92,7 @@ async function views(){return electron.evaluate(({BrowserWindow})=>BrowserWindow
   const result=(await views())[0];report.navigation.push({area,site,...result,error:(await selected()).error});console.log('REMOTE',JSON.stringify(result));
  });
  await home();
- await check('Profile button provides feedback',async()=>{await click('#profile');assert.match(await page.locator('#notice').innerText(),/separate browser profile/);});
+ await check('Profile button opens password manager',async()=>{await click('#profile');const manager=await otherPage('/passwords.html');await manager.waitForSelector('#message');assert.match(await manager.locator('#message').innerText(),/סיסמאות/);await electron.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows().find(w=>w.webContents.getURL().endsWith('/passwords.html')).close());});
  for(const action of ['newtab','history','bookmarks','downloads','help'])await check('Browser menu action '+action,async()=>{await menu(action);if(['history','bookmarks','downloads'].includes(action))await page.keyboard.press('Escape');});
  await check('New window has independent tabs and closes cleanly',async()=>{
   const count=(await state()).tabs.length;await menu('newwindow');
@@ -102,7 +102,7 @@ async function views(){return electron.evaluate(({BrowserWindow})=>BrowserWindow
  for(const action of ['activity','tasks','assistant'])await check('Study Assistant action '+action+' opens working panel',async()=>{
   await menu('study');await click('#studyMenu [data-action="'+action+'"]');
   const panel=await otherPage('/study-panel.html');await panel.waitForSelector('#refresh');await panel.locator('#refresh').click();await waitFor(()=>panel.locator('#scanInfo').innerText().then(t=>t.includes('0')),'panel refresh');
-  await panel.locator('#pair').click();await waitFor(()=>panel.locator('#pairCode').innerText().then(Boolean),'pair code');
+  await panel.locator('#manualPair summary').click();await panel.locator('#pair').click();await waitFor(()=>panel.locator('#pairCode').innerText().then(Boolean),'pair code');
   await panel.locator('#token').fill('invalid-test-value');await panel.locator('#saveToken').click();await waitFor(()=>panel.locator('#log').innerText().then(t=>t.includes('Invalid Telegram token format')),'invalid token feedback');await panel.locator('#openBot').click();
   if(action==='activity'){
    await panel.locator('#scanNow').click();await waitFor(()=>panel.locator('#scanError').innerText().then(Boolean),'unauthenticated scan status',45000);await panel.screenshot({path:path.join(out,'study-panel.png')});
@@ -110,7 +110,7 @@ async function views(){return electron.evaluate(({BrowserWindow})=>BrowserWindow
   await electron.evaluate(({BrowserWindow})=>{const w=BrowserWindow.getAllWindows().find(w=>w.webContents.getURL().endsWith('/study-panel.html'));w.close();});
  });
  await check('Rail settings and browser settings open the panel',async()=>{for(const kind of ['rail','menu']){if(kind==='rail')await click('#railSettings');else await menu('settings');await otherPage('/study-panel.html');await electron.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows().find(w=>w.webContents.getURL().endsWith('/study-panel.html')).close());}});
- await check('Telegram menu invokes fixed bot link through IPC',async()=>{await menu('study');await click('#studyMenu [data-action="telegram"]');assert.ok((await electron.evaluate(()=>global.__northTestExternal)).every(u=>u==='https://t.me/NorthStudyHelperBot'));});
+ await check('Telegram menu opens the connection panel',async()=>{await menu('study');await click('#studyMenu [data-action="telegram"]');await otherPage('/study-panel.html');await electron.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows().find(w=>w.webContents.getURL().endsWith('/study-panel.html')).close());assert.ok((await electron.evaluate(()=>global.__northTestExternal)).every(u=>u==='https://t.me/NorthStudyHelperBot'));});
  await check('Study scan menu reaches scanner and reports status',async()=>{await menu('study');await click('#studyMenu [data-action="scan"]');await waitFor(()=>page.locator('#notice').innerText().then(t=>/Scanning|scan/.test(t)),'scan feedback');});
  await check('Renderer reload hydrates existing tab state',async()=>{const before=await state();await page.reload();await waitFor(async()=>(await page.locator('.tab').count())===before.tabs.length,'reload tabs');assert.equal((await state()).active,before.active);});
  await check('Keyboard Ctrl+T, Ctrl+W, Ctrl+L and Escape',async()=>{const n=(await state()).tabs.length;await page.keyboard.press('Control+t');await waitFor(async()=>(await state()).tabs.length===n+1,'Ctrl+T');await page.keyboard.press('Control+w');await waitFor(async()=>(await state()).tabs.length===n,'Ctrl+W');await page.keyboard.press('Control+l');assert.equal(await page.locator('#address').evaluate(e=>e===document.activeElement),true);await click('#more');await page.keyboard.press('Escape');assert.equal(await page.locator('#browserMenu').isVisible(),false);});

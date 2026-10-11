@@ -9,6 +9,18 @@ global.__northTestExternal=external;
 const folders=[];
 shell.showItemInFolder=file=>folders.push(file);
 global.__northTestFolders=folders;
+if(process.env.NORTH_TEST_TELEGRAM==='1'){
+ global.__northTestTelegramQueue=[];
+ const originalFetch=global.fetch;
+ global.fetch=async(url,options)=>{
+  if(!String(url).startsWith('https://api.telegram.org/bot'))return originalFetch(url,options);
+  const method=String(url).split('/').pop();let result=true;
+  if(method==='getMe')result={username:'NorthStudyHelperBot'};
+  if(method==='getWebhookInfo')result={url:''};
+  if(method==='getUpdates'){await new Promise(r=>setTimeout(r,100));result=global.__northTestTelegramQueue.splice(0);}
+  return {ok:true,json:async()=>({ok:true,result})};
+ };
+}
 app.on('web-contents-created',(_e,wc)=>{
  wc.on('console-message',event=>console.log(JSON.stringify({type:'console',id:wc.id,level:event.level,message:event.message,url:event.sourceId})));
  wc.on('preload-error',(_event,file,error)=>console.log(JSON.stringify({type:'preload-error',file,message:error.message})));

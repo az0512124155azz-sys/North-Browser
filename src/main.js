@@ -4,8 +4,13 @@ const fs=require('node:fs');const path=require('node:path');
 const {createTelegramBot}=require('./telegram-bot');
 const {createClassroomScanner}=require('./classroom-scanner');
 const {createStudyAgent}=require('./study-agent');
+const {createPasswordVault,createSessionKeeper,credentialOrigin}=require('./secure-profile');
+const crypto=require('node:crypto');
 const PARTITION='persist:north-main';
 let win,panel,tray,scanner,bot,study,quitting=false,scanTimer=null;
+let vault,sessionKeeper,passwordWindow,shutdownReady=false;
+const passwordOffers=new Map();
+const usernameHints=new Map();
 const browsers=new Map();
 const downloads=new Map();let downloadSeq=0;
 const state={};let storeFile='';let botStatus={};
@@ -27,8 +32,9 @@ function navigateTab(b,t,raw){
  const url=normalize(raw);t.url=url;t.title=url==='north://newtab'?'New tab':url;t.error='';
  if(url==='north://newtab'){destroyView(b,t);t.loading=false;emitTabs(b);return t.id}
  if(!t.view){
-  const view=new WebContentsView({webPreferences:{partition:PARTITION,sandbox:true,contextIsolation:true,nodeIntegration:false}});t.view=view;
+  const view=new WebContentsView({webPreferences:{preload:path.join(__dirname,'credentials-preload.js'),partition:PARTITION,sandbox:true,contextIsolation:true,nodeIntegration:false}});t.view=view;
   view.webContents.setWindowOpenHandler(({url:u})=>{if(/^https?:\/\//i.test(u))add(b,u);return{action:'deny'}});
+  const viewId=view.webContents.id;view.webContents.once('destroyed',()=>usernameHints.delete(viewId));
   const navigated=(_e,u)=>{t.url=u;t.title=view.webContents.getTitle()||u;emitTabs(b)};
   view.webContents.on('did-navigate',navigated);view.webContents.on('did-navigate-in-page',navigated);
   view.webContents.on('page-title-updated',(_e,title)=>{t.title=title;emitTabs(b)});
@@ -45,6 +51,13 @@ function navigateTab(b,t,raw){
 function add(b,raw='north://newtab'){const id=++b.seq,t={id,url:'north://newtab',title:'New tab',loading:false,view:null};b.tabs.set(id,t);select(b,id);navigateTab(b,t,raw);return id}
 function close(b,id){const t=b.tabs.get(id);if(!t)return;destroyView(b,t);b.tabs.delete(id);if(id===b.active){b.active=0;b.tabs.size?select(b,[...b.tabs.keys()].at(-1)):add(b)}emitTabs(b)}
 function browserFrom(event){const b=browsers.get(event.sender.id);if(!b||event.senderFrame!==event.sender.mainFrame)throw Error('Invalid browser IPC sender');return b}
+function credentialSender(event){
+ if(event.sender.isDestroyed()||!event.senderFrame||event.senderFrame!==event.sender.mainFrame)return null;
+ const origin=credentialOrigin(event.senderFrame.url);if(!origin||origin!==credentialOrigin(event.sender.getURL()))return null;
+ for(const b of browsers.values()){const t=b.tabs.get(b.active);if(t?.view?.webContents===event.sender)return {b,t,origin};}return null;
+}
+function passwordPanel(){if(passwordWindow&&!passwordWindow.isDestroyed()){passwordWindow.focus();return;}passwordWindow=new BrowserWindow({parent:win,width:580,height:640,backgroundColor:'#1a2420',autoHideMenuBar:true,webPreferences:{preload:path.join(__dirname,'preload.js'),sandbox:true,contextIsolation:true,nodeIntegration:false}});passwordWindow.loadFile(path.join(__dirname,'passwords.html'));}
+function passwordPanelSender(e){if(e.sender!==passwordWindow?.webContents||e.senderFrame!==e.sender.mainFrame)throw Error('Invalid password manager sender');}
 function createBrowser(){
  const w=new BrowserWindow({width:1370,height:880,minWidth:850,minHeight:540,backgroundColor:'#1c2923',title:'North Browser',titleBarStyle:process.platform==='win32'?'hidden':(process.platform==='darwin'?'hiddenInset':'default'),...(process.platform==='win32'?{titleBarOverlay:{color:'#17231e',symbolColor:'#e9efea',height:48}}:{}),icon:path.join(__dirname,'north-icon.png'),webPreferences:{preload:path.join(__dirname,'preload.js'),contextIsolation:true,nodeIntegration:false,sandbox:true}});
  const contentsId=w.webContents.id;
@@ -70,12 +83,31 @@ async function initializeStudy(){loadState();scanner=createClassroomScanner({Bro
  scanTimer=setInterval(()=>scanNow().catch(e=>console.warn('Periodic classroom scan:',e.message)),5*60*1000);
  }
 app.whenReady().then(async()=>{
+ try{vault=createPasswordVault(app.getPath('userData'),safeStorage);}catch(e){console.warn('Password storage:',e.message);}
+ sessionKeeper=createSessionKeeper(app.getPath('userData'),safeStorage,session.fromPartition(PARTITION));
+ await sessionKeeper.start().catch(e=>console.warn('Session restore:',e.message));
  session.fromPartition(PARTITION).on('will-download',(_e,item)=>{
   const id=++downloadSeq,entry={id,name:item.getFilename(),url:item.getURL(),state:'progressing',path:''};downloads.set(id,entry);emitDownloads();
   item.on('updated',(_event,state)=>{entry.state=state;emitDownloads()});
   item.once('done',(_event,state)=>{entry.state=state;entry.path=item.getSavePath();emitDownloads()});
  });
  ipcMain.handle('north:tabs',e=>tabState(browserFrom(e)));
+ ipcMain.handle('passwords:panel',e=>{browserFrom(e);passwordPanel();});
+ ipcMain.handle('passwords:list',e=>{passwordPanelSender(e);return vault?.list()||[];});
+ ipcMain.handle('passwords:remove',(e,id)=>{passwordPanelSender(e);vault?.remove(id);});
+ const hintedUsername=e=>{const hint=usernameHints.get(e.sender.id);return hint&&hint.origin===credentialOrigin(e.senderFrame.url)&&hint.expires>Date.now()?hint.username:'';};
+ ipcMain.on('credentials:username',(e,username)=>{const sender=credentialSender(e);if(sender&&typeof username==='string'&&username.length>0&&username.length<=1000)usernameHints.set(e.sender.id,{origin:sender.origin,username,expires:Date.now()+600000});});
+ ipcMain.handle('credentials:lookup',(e,username)=>{const sender=credentialSender(e);if(!sender||!vault)return null;const entry=vault.forOrigin(sender.origin,typeof username==='string'&&username?username:hintedUsername(e));return entry?{username:entry.username,password:entry.password}:null;});
+ ipcMain.on('credentials:offer',(e,data)=>{
+  const sender=credentialSender(e);
+  if(!sender||!vault?.available()||typeof data?.username!=='string'||typeof data.password!=='string'||!data.password||data.username.length>1000||data.password.length>4000)return;
+  data={username:data.username||hintedUsername(e),password:data.password};if(!data.username)return;
+  if(vault.matches(sender.origin,data.username,data.password))return;
+  const id=crypto.randomUUID();passwordOffers.set(id,{b:sender.b,origin:sender.origin,username:data.username,password:data.password});
+  setTimeout(()=>passwordOffers.delete(id),120000).unref();
+  sender.b.win.webContents.send('passwords:offer',{id,origin:sender.origin,username:data.username});
+ });
+ ipcMain.handle('passwords:answer',(e,id,save)=>{const b=browserFrom(e),offer=passwordOffers.get(id);if(!offer||offer.b!==b)throw Error('This password offer expired');passwordOffers.delete(id);if(save)vault.save(offer.origin,offer.username,offer.password);return true;});
  ipcMain.handle('north:window',e=>{browserFrom(e);createBrowser();return true});
  ipcMain.handle('north:open',(e,u)=>add(browserFrom(e),u));ipcMain.handle('north:select',(e,id)=>select(browserFrom(e),id));ipcMain.handle('north:close',(e,id)=>close(browserFrom(e),id));
  ipcMain.handle('north:go',(e,id,u)=>{const b=browserFrom(e),t=b.tabs.get(id);if(t)return navigateTab(b,t,u)});
@@ -91,11 +123,12 @@ app.whenReady().then(async()=>{
  ipcMain.handle('study:pair',()=>{if(!bot)throw Error('Bot is not ready');return bot.createPairingCode()});
  ipcMain.handle('study:scan',()=>scanNow());
  ipcMain.handle('study:bot',()=>shell.openExternal('https://t.me/NorthStudyHelperBot'));
+ ipcMain.handle('study:connect',async()=>{if(!bot?.isConfigured())throw Error('יש להגדיר את מפתח הבוט פעם אחת לפני החיבור.');const pair=bot.createPairingCode();await shell.openExternal(pair?.url||'https://t.me/NorthStudyHelperBot');return pair;});
  win=createBrowser();createTray();
  await initializeStudy();
  if(process.platform==='win32'&&app.isPackaged)app.setLoginItemSettings({openAtLogin:true,openAsHidden:true,args:['--background']});
  if(process.argv.includes('--background'))win.hide();
 });
-app.on('before-quit',()=>{quitting=true;if(scanTimer)clearInterval(scanTimer);bot?.stop();scanner?.destroy();persist()});
+app.on('before-quit',event=>{quitting=true;if(shutdownReady)return;event.preventDefault();if(scanTimer)clearInterval(scanTimer);bot?.stop();scanner?.destroy();persist();passwordOffers.clear();Promise.resolve(sessionKeeper?.save()).catch(e=>console.warn('Session save:',e.message)).finally(()=>{sessionKeeper?.stop();shutdownReady=true;app.quit();});});
 app.on('window-all-closed',()=>{if(!tray&&process.platform!=='darwin')app.quit()});
 app.on('activate',()=>{if(win&&!win.isDestroyed())win.show()});

@@ -157,6 +157,14 @@ function renderDownloads(data) {
  for(const item of data){const b=document.createElement('button');b.className='saved-entry';b.textContent=item.name+' · '+item.state;b.disabled=item.state!=='completed';b.onclick=()=>north.showDownload(item.id);popup.append(b);}
 }
 north.onDownloads(data=>{if($('#browserMenu').dataset.listMode==='downloads')renderDownloads(data);});
+north.passwords.onOffer(offer=>{
+ closeMenus();const popup=$('#browserMenu');popup.dataset.listMode='password';popup.replaceChildren();
+ const title=document.createElement('div');title.className='list-header';title.textContent='Save password for '+new URL(offer.origin).host+'?';
+ const label=document.createElement('p');label.className='list-empty';label.textContent=offer.username;
+ popup.append(title,label);
+ for(const [name,save] of [['Save',true],['Not now',false]]){const button=document.createElement('button');button.className='saved-entry';button.dataset.passwordSave=String(save);button.textContent=name;button.onclick=async()=>{try{await north.passwords.answer(offer.id,save);closeMenus();if(save)toast('Password saved securely. Click a login field on your next visit to fill it.');}catch(e){closeMenus();toast(e.message);}};popup.append(button);}
+ popup.hidden=false;$('#menuScrim').hidden=false;menuMode='browser';document.body.classList.add('menu-active');$('#more').setAttribute('aria-expanded','true');north.overlay(Math.min(320,Math.max(0,window.innerWidth-520)));
+});
 function recordVisit(t) {
  if(!t||t.url==='north://newtab'||t.url===recordVisit.last)return;
  recordVisit.last=t.url;
@@ -180,7 +188,7 @@ function handleAction(action) {
   case 'newwindow': closeMenus();north.newWindow().catch(e=>toast(e.message));break;
   case 'study': setMenus('study');break;
   case 'activity':case 'tasks':case 'assistant':case 'settings': studyPanel();break;
-  case 'telegram':closeMenus();north.study.openBot().catch(e=>toast(e.message));break;
+  case 'telegram':studyPanel();break;
   case 'scan':runScan();break;
   case 'history':showSimpleList('history');break;
   case 'bookmarks':showSimpleList('bookmarks');break;
@@ -213,7 +221,7 @@ $('#railHistory').onclick=()=>showSimpleList('history');
 $('#downloadsTop').onclick=()=>handleAction('downloads');
 $('#railDownloads').onclick=()=>handleAction('downloads');
 $('#railSettings').onclick=studyPanel;
-$('#profile').onclick=()=>toast('North maintains a separate browser profile on this computer.');
+$('#profile').onclick=()=>{closeMenus();north.passwords.panel().catch(e=>toast(e.message));};
 $('#more').onclick=()=>setMenus(menuMode==='none'?'browser':'none');
 $('#menuScrim').onclick=closeMenus;
 $('#studyClose').onclick=()=>setMenus('browser');

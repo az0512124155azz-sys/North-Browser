@@ -6,5 +6,6 @@ contextBridge.exposeInMainWorld('north',{
  open:u=>ipcRenderer.invoke('north:open',u),select:id=>ipcRenderer.invoke('north:select',id),close:id=>ipcRenderer.invoke('north:close',id),go:(id,u)=>ipcRenderer.invoke('north:go',id,u),nav:(id,a)=>ipcRenderer.invoke('north:nav',id,a),overlay:pixels=>ipcRenderer.invoke('north:overlay',pixels),quit:()=>ipcRenderer.invoke('north:quit'),
  onTabs:f=>subscribe('tabs:update',f),
  onDownloads:f=>subscribe('downloads:update',f),
- study:{panel:()=>ipcRenderer.invoke('study:panel'),status:()=>ipcRenderer.invoke('study:status'),setToken:t=>ipcRenderer.invoke('study:setToken',t),pair:()=>ipcRenderer.invoke('study:pair'),scan:()=>ipcRenderer.invoke('study:scan'),openBot:()=>ipcRenderer.invoke('study:bot'),onChange:f=>subscribe('study:changed',f)}
+ passwords:{panel:()=>ipcRenderer.invoke('passwords:panel'),list:()=>ipcRenderer.invoke('passwords:list'),remove:id=>ipcRenderer.invoke('passwords:remove',id),answer:(id,save)=>ipcRenderer.invoke('passwords:answer',id,save),onOffer:f=>subscribe('passwords:offer',f)},
+ study:{panel:()=>ipcRenderer.invoke('study:panel'),status:()=>ipcRenderer.invoke('study:status'),setToken:t=>ipcRenderer.invoke('study:setToken',t),pair:()=>ipcRenderer.invoke('study:pair'),connect:()=>ipcRenderer.invoke('study:connect'),scan:()=>ipcRenderer.invoke('study:scan'),openBot:()=>ipcRenderer.invoke('study:bot'),onChange:f=>subscribe('study:changed',f)}
 });

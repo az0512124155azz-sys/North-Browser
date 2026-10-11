@@ -1,11 +1,11 @@
 {
   "name": "north-browser",
-  "version": "2.10.1",
+  "version": "2.11.0",
   "private": true,
   "main": "src/main.js",
   "scripts": {
     "start": "electron .",
-    "test:electron": "node test/electron-ui.cjs",
+    "test:electron": "node test/electron-ui.cjs && node test/electron-profile.cjs",
     "check": "node --check src/main.js && node --check src/preload.js && node --check src/renderer.js && node --check src/study-panel.js && node --check src/classroom-scanner.js && node --check src/telegram-bot.js && node --check src/study-agent.js && node --test test/*.test.js",
     "dist:win": "electron-builder --win nsis portable --publish never",
     "dist:mac": "electron-builder --mac dmg zip --publish never",
