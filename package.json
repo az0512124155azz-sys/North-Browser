@@ -50,8 +50,7 @@
         "deb"
       ],
       "category": "Network",
-      "maintainer": "North Browser <north-browser@users.noreply.github.com>",
-      "desktopName": "North Browser"
+      "maintainer": "North Browser <north-browser@users.noreply.github.com>"
     }
   },
   "author": {
