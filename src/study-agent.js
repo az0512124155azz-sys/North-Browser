@@ -41,7 +41,15 @@ function createStudyAgent({store,save,items,transport=fetch}){
    const response=await transport('http://127.0.0.1:11434/api/chat',{method:'POST',headers:{'content-type':'application/json'},signal:ctrl.signal,body:JSON.stringify({model,stream:false,options:{temperature:0.3,num_predict:3000,num_ctx:32768},messages,tools})});
    if(!response.ok)throw Error(response.status===404?'המודל qwen2.5 עדיין לא מותקן ב־Ollama במחשב.':'המודל המקומי החזיר שגיאה ('+response.status+').');
    const data=await response.json();if(data.error)throw Error('המודל המקומי לא זמין: '+String(data.error).slice(0,160));
-   if(!data.message)throw Error('לא התקבלה תשובה מהמודל המקומי.');return data.message;
+   if(!data.message)throw Error('לא התקבלה תשובה מהמודל המקומי.');
+   const message=data.message;
+   // Some installed Qwen/Ollama templates emit a whole tool JSON object in
+   // content instead of tool_calls. Accept only a declared tool, never code.
+   if(!message.tool_calls?.length&&Array.isArray(tools)&&tools.length){
+    const content=String(message.content||'').trim().replace(/^<tool_call>\s*|\s*<\/tool_call>$/g,'').replace(/^```(?:json)?\s*|\s*```$/g,'');
+    try{const call=JSON.parse(content);if(call&&typeof call.name==='string'&&tools.some(t=>t.function?.name===call.name)&&call.arguments&&typeof call.arguments==='object'&&!Array.isArray(call.arguments))return{role:'assistant',content:'',tool_calls:[{function:{name:call.name,arguments:call.arguments}}]};}catch{}
+   }
+   return message;
   }catch(e){if(e.name==='AbortError')throw Error('המודל המקומי לא סיים בזמן. אפשר לנסות בקשה קצרה יותר.');if(e instanceof TypeError)throw Error('כדי שאוכל לשוחח ולפתור שאלות, צריך ש־Ollama עם qwen2.5 יפעל במחשב שבו North פתוח. בינתיים אפשר לבקש סריקה או רשימת מטלות.');throw e;}
   finally{clearTimeout(timer)}
  }

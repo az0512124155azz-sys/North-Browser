@@ -5,7 +5,7 @@ const FIXED_USERNAME = 'NorthStudyHelperBot';
 const WAIT_MS = 2500;
 const cut = (s, n = 3500) => String(s || '').slice(0, n);
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
-const wantsPDF=text=>/(?:pdf|פי די אף|פי די אפ|פי די אף)/i.test(text)&&!/(?:בלי|ללא|אל תשלח|אל תכין|לא צריך|לא רוצה).{0,40}(?:pdf|פי די)/i.test(text);
+const wantsPDF=text=>/(?:pdf|פי די (?:אף|אפ))/i.test(text)&&!/(?:בלי|ללא|אל תשלח|אל תכין|לא צריך|לא רוצה).{0,40}(?:pdf|פי די)/i.test(text);
 
 function createTelegramBot({readState, writeState, getToken, saveToken, scan, tasks, classes, messages=async()=>[], draft, addTask, converse, readDocument, renderPDF, onStatus = () => {}, transport = fetch}) {
   let running = false, generation = 0, pairingCode = null, pairingNonce = null, pairingUntil = 0;
@@ -114,7 +114,7 @@ function createTelegramBot({readState, writeState, getToken, saveToken, scan, ta
       case '/start':case '/help':return send(chatId,'היי 🙂 אני North. אפשר פשוט לדבר איתי: ״מה יש לי לעשות?״, ״תבדוק את הקלסרום״ או לשלוח PDF ולכתוב מה צריך לעשות בו. אחרי תשובה אפשר לכתוב ״תפרט יותר״ או ״תתקן את הסעיף השני״.\n\nNorth צריך לפעול במחשב. שיחה ופתרונות נעזרים ב־Qwen המקומי, ולא מגישים עבודה בשמך.');
       case '/scan': {
         await send(chatId,'מתחיל סריקה פנימית של Classroom. אעדכן בסיום.');
-        try {const result=await scan();await send(chatId,`סריקה הסתיימה: ${result?.courses||0} כיתות, ${result?.assignments||0} מטלות, ${result?.announcements||0} הודעות. ${result?.authRequired?'נדרשת התחברות ל־Classroom בתוך North.':''}`);await showTasks(chatId);}catch(e){await send(chatId,'הסריקה נכשלה: '+cut(e.message,600));}
+        try {const result=await scan();await send(chatId,`סריקה הסתיימה: ${result?.courses||0} כיתות, ${result?.assignments||0} מטלות, ${result?.announcements||0} הודעות. ${result?.authRequired?'נדרשת התחברות ל־Classroom בתוך North.':''}`);if((await tasks()).length)await showTasks(chatId);}catch(e){await send(chatId,'הסריקה נכשלה: '+cut(e.message,600));}
         return;
       }
       case '/tasks':return showTasks(chatId);

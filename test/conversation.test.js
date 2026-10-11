@@ -27,6 +27,10 @@ test('Uses existing Qwen variant and prefers general model to coder model',async
 test('Document input rejects oversized/unsupported files and output escapes HTML',async()=>{
  await assert.rejects(readDocument(Buffer.alloc(20*1024*1024+1),'x.pdf'),/20MB/);await assert.rejects(readDocument(Buffer.from('invalid'),'x.pdf'),/PDF/);assert.equal((await readDocument(Buffer.from('Question 2+2'),'x.txt')).text,'Question 2+2');assert.ok(answerHTML('<script>bad</script>').includes('&lt;script&gt;'));assert.ok(!answerHTML('<script>bad</script>').includes('<script>'));
 });
+test('Qwen tool JSON fallback accepts only declared names, not arbitrary code or JSON',async()=>{
+ let content='{"name":"list_tasks","arguments":{}}';const a=createStudyAgent({store:{},save:()=>{},items:()=>[],transport:async(url)=>({ok:true,json:async()=>url.endsWith('/tags')?{models:[{name:'qwen2.5-coder:7b'}]}:{message:{content}}})});const tools=[{type:'function',function:{name:'list_tasks'}}];
+ assert.equal((await a.converse([],tools)).tool_calls[0].function.name,'list_tasks');content='{"name":"execute_shell","arguments":{"command":"bad"}}';assert.equal((await a.converse([],tools)).tool_calls,undefined);content='Here is some JSON: {"name":"list_tasks","arguments":{}}';assert.equal((await a.converse([],tools)).tool_calls,undefined);
+});
 test('Owner-only natural requests select numbered tasks, revise without ID and do not truncate answers',async()=>{
  const store={bot:{owner:'1',offset:0}},queue=[],out=[],revisions=[];let scanCount=0,models=0;
  const transport=async(url,o)=>{const method=url.split('/').pop();let result=true;const body=o?.body instanceof FormData?{}:JSON.parse(o?.body||'{}');if(method==='getMe')result={username:'NorthStudyHelperBot'};if(method==='getWebhookInfo')result={url:''};if(method==='getUpdates'){await new Promise(r=>setTimeout(r,5));result=queue.splice(0);}if(method==='sendMessage')out.push(body.text);return{ok:true,json:async()=>({ok:true,result})};};
