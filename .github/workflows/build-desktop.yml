@@ -8,6 +8,9 @@ on:
         default: false
   push:
     branches: [main]
+concurrency:
+  group: north-build-${{ github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: write
 jobs:
