@@ -40,7 +40,7 @@ svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.85;strok
 .avatar{width:30px;height:30px;border:0;border-radius:50%;background:#dbe5df;color:#344c3e;font-weight:700;font-size:13px}
 .avatar:hover{background:#f7faf6}
 .more{background:#1a2620;border-radius:50%;width:36px!important;height:36px}
-#rail{position:absolute;left:0;top:var(--toolbar);bottom:0;width:var(--rail);background:#1b2720;border-right:1px solid #384a3d;display:flex;flex-direction:column;align-items:center;justify-content:space-between;padding:14px 0 16px;z-index:2}
+#rail{position:absolute;left:0;top:calc(var(--header) + var(--toolbar));bottom:0;width:var(--rail);background:#1b2720;border-right:1px solid #384a3d;display:flex;flex-direction:column;align-items:center;justify-content:space-between;padding:14px 0 16px;z-index:2}
 .rail-main{display:flex;flex-direction:column;align-items:center;gap:12px;width:100%}
 .rail-action{width:44px;height:44px;display:grid;place-items:center;background:transparent;color:#c6d2ca;border:0;border-radius:11px}
 .rail-action svg{width:22px;height:22px}
@@ -60,7 +60,7 @@ svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.85;strok
 .bookmark-add:hover{background:#35473a}
 .bookmark-add svg{width:19px;height:19px}
 #homePage{height:calc(100% - var(--bookmark));display:grid;place-items:start center;overflow:auto;background:radial-gradient(ellipse 65% 39% at 50% 10%,#2c4537 0%,#1e2c23 68%,#1d2922 100%)}
-.home-hero{width:min(920px,96%);padding-top:clamp(90px,17vh,180px);display:flex;align-items:center;flex-direction:column}
+.home-hero{width:min(920px,96%);padding-top:clamp(115px,19.5vh,193px);transition:transform .18s ease;display:flex;align-items:center;flex-direction:column}
 .hero-brand{display:flex;align-items:center;justify-content:center;gap:25px;color:#edf3ed;font-size:clamp(58px,6.7vw,92px);line-height:1;font-weight:650;letter-spacing:-2.7px}
 .hero-compass{color:#f4f8f4;width:97px;height:97px;stroke-width:1.65;filter:drop-shadow(0 3px 5px #0004)}
 #search-form{width:min(700px,92%);height:61px;margin-top:53px;border:1px solid #61746a;border-radius:27px;background:#ffffff0b;display:flex;align-items:center;padding:0 16px 0 21px;gap:17px;box-shadow:0 1px 12px #00000009}
@@ -102,3 +102,7 @@ svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.85;strok
 .list-empty{font-size:12px;color:#a7b7ac;padding:13px 18px;line-height:1.5}
 .saved-entry{display:block;width:100%;font-size:12px;white-space:nowrap;text-overflow:ellipsis;overflow:hidden;text-align:left;border:0;border-radius:6px;color:#dfede2;background:transparent;padding:12px 14px}
 .saved-entry:hover{background:#435747}
+
+@media(min-width:1220px){
+ body.menu-active .home-hero{transform:translateX(-175px)}
+}
