@@ -56,7 +56,7 @@ jobs:
             dist/*.deb
           if-no-files-found: error
   release:
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_release }}
+    if: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.publish_release) }}
     needs: build
     runs-on: ubuntu-latest
     steps:
@@ -66,8 +66,8 @@ jobs:
           merge-multiple: true
       - uses: softprops/action-gh-release@v2
         with:
-          tag_name: v2.8.0-desktop
-          name: North Browser 2.8 Desktop
-          draft: true
+          tag_name: desktop-build-${{ github.run_number }}
+          name: North Desktop Build ${{ github.run_number }}
+          draft: false
           prerelease: true
           files: release-assets/*
