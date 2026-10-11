@@ -1,0 +1,49 @@
+name: North UI screenshot smoke test
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "src/index.html"
+      - "src/style.css"
+      - "src/renderer.js"
+      - ".github/workflows/ui-preview.yml"
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create safe mock browser state
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p=Path('src/index.html')
+          html=p.read_text()
+          html=re.sub(r'<meta http-equiv="Content-Security-Policy"[^>]*>', '', html)
+          injection="""<script>
+          window.north={
+            onTabs:f=>setTimeout(()=>f({active:1,tabs:[{id:1,title:'New Tab',url:'north://newtab',loading:false}]}),0),
+            overlay:()=>Promise.resolve(),open:()=>Promise.resolve(),close:()=>Promise.resolve(),
+            select:()=>Promise.resolve(),go:()=>Promise.resolve(),nav:()=>Promise.resolve(),
+            study:{panel:()=>Promise.resolve(),scan:()=>Promise.resolve(),openBot:()=>Promise.resolve()}
+          };
+          window.addEventListener('load',()=>setTimeout(()=>{
+            document.getElementById('more').click();
+            document.querySelector('[data-action="study"]').click();
+          },450));
+          </script>"""
+          html=html.replace('<script src="./renderer.js"></script>',injection+'<script src="./renderer.js"></script>')
+          Path('src/preview.html').write_text(html)
+          PY
+      - name: Render North UI using Chrome
+        run: |
+          CHROME="$(command -v google-chrome || command -v google-chrome-stable || true)"
+          if [ -z "$CHROME" ]; then echo "Google Chrome unavailable on runner"; exit 1; fi
+          "$CHROME" --headless=new --no-sandbox --disable-gpu --hide-scrollbars --window-size=1648,960 --virtual-time-budget=3500 --screenshot="$PWD/North-UI-Preview.png" "file://$PWD/src/preview.html"
+          test -s North-UI-Preview.png
+      - uses: actions/upload-artifact@v4
+        with:
+          name: North-UI-Preview
+          path: North-UI-Preview.png
+          if-no-files-found: error
