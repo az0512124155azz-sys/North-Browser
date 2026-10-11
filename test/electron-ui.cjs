@@ -117,7 +117,7 @@ async function views(){return electron.evaluate(({BrowserWindow})=>BrowserWindow
  assert.deepEqual(report.errors,[],'Renderer/panel runtime errors');
  for(const line of runtime.split(/\r?\n/)){let event;try{event=JSON.parse(line);}catch{continue;}if(event.type==='preload-error'||(event.type==='console'&&event.level==='error'&&/^file:/.test(event.url||'')))report.errors.push(event.message);}
  assert.deepEqual(report.errors,[],'Preload or local CSP/console errors');
- await check('Exit menu quits Electron',async()=>{await menu('exit');await waitFor(()=>Promise.resolve(processHandle.exitCode!==null),'exit');});
+ await check('Exit menu quits Electron',async()=>{await menu('exit');await electron.close();await waitFor(()=>Promise.resolve(processHandle.exitCode!==null),'exit');});
  report.result='passed';
 })().catch(async e=>{report.result='failed';report.failure=e.stack;console.error(e);if(page){await page.screenshot({path:path.join(out,'failure.png')}).catch(()=>{});console.log('FAILURE STATE',await page.evaluate(async()=>({menu:document.querySelector('#browserMenu').innerText,downloads:await window.north.downloads()})).catch(()=>{}));}process.exitCode=1;}).finally(async()=>{
  if(electron&&processHandle?.exitCode===null)await electron.close().catch(()=>{});

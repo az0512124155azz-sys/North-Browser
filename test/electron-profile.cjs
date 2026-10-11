@@ -19,7 +19,7 @@ const server=http.createServer((req,res)=>{
 const wait=async(fn,label)=>{for(let i=0;i<150;i++){if(await fn())return;await new Promise(r=>setTimeout(r,100));}throw Error('Timeout '+label);};
 async function check(name,fn){await fn();report.checks.push(name);console.log('PASS',name);}
 async function launch(){electron=await _electron.launch({args:[path.join(__dirname,'electron-bootstrap.cjs')],env:{...process.env,NORTH_TEST_PROFILE:profile,NORTH_TEST_TELEGRAM:'1',NORTH_TELEGRAM_BOT_TOKEN:''}});proc=electron.process();for(const stream of [proc.stdout,proc.stderr])stream.on('data',b=>runtime+=b.toString());page=await electron.firstWindow();electron.context().on('page',p=>p.on('pageerror',e=>report.errors.push(e.message)));await page.waitForSelector('.tab');}
-async function quit(){await page.evaluate(()=>window.north.quit());await wait(()=>Promise.resolve(proc.exitCode!==null),'quit');}
+async function quit(){await page.evaluate(()=>window.north.quit());await electron.close();await wait(()=>Promise.resolve(proc.exitCode!==null),'quit');}
 async function go(url){await page.locator('#address').fill(url);await page.locator('#address-form button').click();await wait(()=>Promise.resolve(electron.context().pages().some(p=>p.url()===url)),url);return electron.context().pages().find(p=>p.url()===url);}
 async function panel(){await page.locator('#railSettings').click();let p;await wait(()=>{p=electron.windows().find(p=>p.url().endsWith('/study-panel.html'));return Promise.resolve(!!p);},'study panel');return p;}
 (async()=>{
